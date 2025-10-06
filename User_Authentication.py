@@ -5,10 +5,10 @@ import re
 client = MongoClient('mongodb+srv://tester_username:tester_password@ai-tour-guide.mzeft5j.mongodb.net/')
 
 # Access the database
-db = client['Users_Database']
+db = client['Tour_Guide']
 
 # Access the correct collection
-users = db['Users']
+users = db['Users_Database']
 
 def register(username, password, confirm_password, email):
 
