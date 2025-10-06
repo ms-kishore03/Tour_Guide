@@ -2,3 +2,5 @@ pymongo
 bcrypt
 python-dotenv
 requests
+streamlit
+pandas
