@@ -13,7 +13,7 @@ st.markdown("Plan your next adventure 🌍")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("🌎 Explore Trips"):
-        st.switch_page("pages/Explore.py")
+        st.switch_page("pages/TripPlanner.py")
 with col2:
     if st.button("📤 Logout"):
         logout()

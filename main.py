@@ -1,4 +1,4 @@
-import User_Authentication
+import Utilities.User_Authentication as User_Authentication
 from API_Handlers import WeatherHandler
 import agents
 

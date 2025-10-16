@@ -38,16 +38,17 @@ def login(username, password):
     login = False
 
     if not username or not password:
-        return "All fields are required!"
+        return False
     
     user = users.find_one({"username": username})
     if not user:
-        return "User not found!"
+        return False
+    
     if user and not bcrypt.checkpw(password.encode("utf-8"), user['password']):
-        return "Incorrect password!"
+        return False
     
     if user and bcrypt.checkpw(password.encode("utf-8"), user['password']):
         login = True
         return login
         
-    return "Invalid username or password!"  
+    return False  
