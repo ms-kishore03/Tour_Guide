@@ -2,62 +2,112 @@ import streamlit as st
 from datetime import datetime
 from streamlit_folium import st_folium
 import folium
-from utils import init_session_state
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 
-init_session_state()
-st.set_page_config(page_title="Trip Overview", page_icon="🧭", layout="centered")
+st.set_page_config(page_title="Trip Overview", page_icon="🧭", layout="wide")
 
-if not st.session_state.current_trip:
+# ----------------- Retrieve Trip -----------------
+try:
+    trip = st.session_state.get("current_trip", None)
+    print(f"Retrieved current_trip from st.session_state: {trip}")
+except Exception as e:
+    print(f"Error retrieving current_trip: {e}")
+    st.error(f"Error loading trip data: {e}")
+    trip = None
+
+if not trip:
     st.warning("No destination selected. Go to Explore to plan your trip.")
     st.stop()
 
-trip = st.session_state.current_trip
 place = trip.get("Place Name", "Unknown Destination")
 
-st.title(f"🧭 {place}")
+# ----------------- Page Header -----------------
+st.title(f"🧭 Trip to {place}")
+
+# ----------------- Trip Details (Full Width) -----------------
+st.markdown("### Trip Details")
 st.markdown(f"""
-**Scenario:** {trip.get('Scenario', 'N/A')}  
-**Climate:** {trip.get('Climate', 'N/A')}  
-**Duration:** {trip.get('Duration', 'N/A')}  
-**People:** {trip.get('People', 'N/A')}  
-**Transport:** {trip.get('Transport', 'N/A')}  
+- **Destination**: {place}  
+- **Scenario**: {trip.get('Scenario', 'N/A')}  
+- **Climate**: {trip.get('Climate', 'N/A')}  
+- **Duration**: {trip.get('Duration', 'N/A')}  
+- **People**: {trip.get('People', 'N/A')}  
+- **Transport**: {trip.get('Transport', 'N/A')}  
+- **Description**: {trip.get('Description', 'No description available')}  
 """)
 
 st.divider()
-tab1, tab2, tab3 = st.tabs(["🗺️ Map", "🌦️ Weather", "📰 News"])
 
-# --- Map Tab ---
-with tab1:
-    coords = {
-        "Paris": [48.8566, 2.3522],
-        "Zermatt, Switzerland": [46.0207, 7.7491],
-        "Queenstown, New Zealand": [-45.0312, 168.6626],
-        "Banff, Canada": [51.1784, -115.5708]
-    }
-    lat, lon = coords.get(place, [48.8566, 2.3522])
-    m = folium.Map(location=[lat, lon], zoom_start=11)
-    folium.Marker([lat, lon], popup=place).add_to(m)
-    st_folium(m, width=700, height=500)
+# ----------------- Split Layout -----------------
+left_col, right_col = st.columns([1, 2])  # Left: Chatbot | Right: Map/Weather/News
 
-# --- Weather Tab ---
-with tab2:
-    st.info("🌤️ Weather data will appear here (API integration placeholder).")
+# ----------------- LEFT COLUMN (Chatbot) -----------------
+with left_col:
+    st.subheader("💬 Trip Assistant Chatbot")
+    st.markdown("Ask anything about your destination!")
 
-# --- News Tab ---
-with tab3:
-    st.info("🗞️ Latest news about this destination will appear here (API placeholder).")
+    user_input = st.text_input("You:", placeholder="e.g. What’s the best time to visit?")
+    if user_input:
+        st.chat_message("user").markdown(user_input)
+        st.chat_message("assistant").markdown(
+            f"🤖 That’s a great question! Soon I’ll provide travel insights about **{place}** here."
+        )
+
+# ----------------- RIGHT COLUMN (Map, Weather, News) -----------------
+with right_col:
+    # --- Get Coordinates for Map ---
+    try:
+        geolocator = Nominatim(user_agent="trip_planner_app")
+        location = geolocator.geocode(place, timeout=10)
+        if location:
+            lat, lon = location.latitude, location.longitude
+            print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
+        else:
+            lat, lon = 0, 0
+            st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
+            print(f"Geocoding failed for {place}: No location found")
+    except (GeocoderTimedOut, GeocoderUnavailable) as e:
+        lat, lon = 0, 0
+        st.warning(f"Geocoding error for {place}: {e}. Defaulting to (0, 0).")
+        print(f"Geocoding error for {place}: {e}")
+
+    # --- Expanders for Info Sections ---
+    with st.expander("🗺️ View Map", expanded=True):
+        m = folium.Map(location=[lat, lon], zoom_start=11)
+        folium.Marker([lat, lon], popup=place).add_to(m)
+        st_folium(m, width=700, height=400)
+
+    with st.expander("🌦️ Weather Information", expanded=False):
+        st.info(f"🌤️ Weather data for {place} will appear here (API integration placeholder).")
+
+    with st.expander("📰 Local News", expanded=False):
+        st.info(f"🗞️ Latest news about {place} will appear here (API integration placeholder).")
 
 st.divider()
-if st.button("💾 Save Trip"):
-    trip_to_save = trip.copy()
-    trip_to_save["Saved Date"] = str(datetime.now().date())
 
-    if trip_to_save not in st.session_state.saved_trips:
-        st.session_state.saved_trips.append(trip_to_save)
-        st.success("Trip saved! View it on Home 🏡")
-    else:
-        st.info("This trip is already saved.")
+# ----------------- Bottom Action Buttons -----------------
+col1, col2 = st.columns([1, 1])
+with col1:
+    if st.button("💾 Save Trip"):
+        try:
+            trip_to_save = trip.copy()
+            trip_to_save["Saved Date"] = str(datetime.now().date())
+            print(f"Saving trip: {trip_to_save}")
 
+            if "saved_trips" not in st.session_state:
+                st.session_state.saved_trips = []
+            if trip_to_save not in st.session_state.saved_trips:
+                st.session_state.saved_trips.append(trip_to_save)
+                print(f"Stored saved_trips in st.session_state: {st.session_state.saved_trips}")
+                st.success("Trip saved! View it on Home 🏡")
+            else:
+                st.info("This trip is already saved.")
+        except Exception as e:
+            print(f"Error saving trip: {e}")
+            st.error(f"Error saving trip: {e}")
 
-if st.button("⬅️ Back to Home"):
-    st.switch_page("pages/Home.py")
+with col2:
+    if st.button("⬅️ Back to Home"):
+        print("Navigating back to Home.py")
+        st.switch_page("pages/Home.py")
