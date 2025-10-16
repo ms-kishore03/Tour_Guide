@@ -1,71 +1,101 @@
-from langchain_groq import ChatGroq
-import os
 from google import genai
+import os
 from dotenv import load_dotenv
-import databaseManager
+import Utilities.databaseManager as databaseManager
 
+# ---------- ENV SETUP ----------
+os.environ.pop("GROQ_API_KEY", None)
 load_dotenv()
 
-# function that suggests places to users if they have no plan in mind
-
-def suggest_places(Climate, Scenario, Location, TripType, Transport):
-
-    #check the mongo db for existing places
-    #if exists return the places
-
+# ---------- FUNCTION 1: Suggest Places ----------
+def suggest_places(Trip_Theme, Specific_Activity, Climate, budget, duration, Location, TripType, Transport):
+    # Check if entry exists in MongoDB
     existing_entry = databaseManager.collection.find_one({
-            "Climate": Climate,
-            "Scenario": Scenario,
-            "Location": Location,
-            "TripType": TripType,
-            "Transport": Transport
+        "Trip_Theme": Trip_Theme,
+        "Specific_Activity": Specific_Activity,
+        "Climate": Climate,
+        "Budget": budget,
+        "Duration": duration,
+        "Location": Location,
+        "TripType": TripType,
+        "Transport": Transport
     })
+    
     if existing_entry:
         print("Fetching from database...")
-        return existing_entry["Places"]
-    
-    #else call gemini api to get the places
+        return existing_entry["Places"], existing_entry.get("Descriptions", [])
 
-    else:
-        print("Fetching from Gemini API...")
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        suggested_places=[]
-        validation = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=(f"""
-            You are a trip organizer agent. 
-            You are given the following:
-            - Climate: {Climate}
-            - Scenario: {Scenario}
-            - Location: {Location}
-            - Trip Type: {TripType}
-            - Transport: {Transport}
+    # Else, call Gemini API
+    print("Fetching from Gemini API...")
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-            Task: Suggest 5 best tourist places to visit based on the inputs.
-            Output format: Only list the place names, one per line.
-            """)
-        )
-        text = validation.text.strip().split("\n")
-        for place in text:
-            if place:
-                suggested_places.append(place.strip("- ").strip())
-        
-        #store the places in mongo db
-        databaseManager.insert_place(Climate, Scenario, Location, TripType, Transport, suggested_places)
-        return suggested_places
-    
-# function that provides a brief description of the place
-
-def place_definition(place):
-    client = ChatGroq(api_key=os.getenv("GEMINI_API_KEY"))
-    response=client.models.generate_content(
+    # ---------- Fetch from Gemini for Places ----------
+    validation = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=(f"""
-        You are a travel guide agent.
-        You are given the following place name: {place}
-        Task: Provide a brief description of the place in 5-6 sentences.
-        Provide detailed information about the place including its significance, location, and any interesting facts and points of interest.
-        Output format: Provide the description in points format.
-        """)
+        contents=f"""
+        You are a trip organizer agent.
+        You are given the following:
+        - Trip_Theme: {Trip_Theme}
+        - Specific_Activity: {Specific_Activity}
+        - Climate: {Climate}
+        - Budget: {budget}
+        - Duration: {duration}
+        - Location: {Location}
+        - TripType: {TripType}
+        - Transport: {Transport}
+
+        Task: Suggest 5 best tourist places to visit based on the inputs.
+        Output format: Only list the place names, one per line. 
+        No numbering, no bullet points, no extra text.
+        """
     )
-    return response.text.strip()
+
+    try:
+        text_output = validation.candidates[0].content.parts[0].text.strip()
+    except Exception as e:
+        print("Error reading Gemini response:", e)
+        text_output = ""
+
+    suggested_places = [p.strip("- ").strip() for p in text_output.split("\n") if p.strip()]
+
+    # ---------- Get Place Descriptions ----------
+    place_def = place_definition(suggested_places)
+
+    # ---------- Store in MongoDB ----------
+    databaseManager.insert_place(
+        Trip_Theme, Specific_Activity, Climate,
+        budget, duration, Location, TripType, Transport,
+        suggested_places, place_def
+    )
+
+    return suggested_places, place_def
+
+
+# ---------- FUNCTION 2: Place Definition ----------
+def place_definition(places):
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=f"""
+        You are a travel guide agent.
+        For each of the following places: {', '.join(places)},
+        provide a short 2–3 line description including its location and one unique attraction.
+        Output format:
+        PlaceName: Description
+        One per line. No bullets or numbering.
+        """
+    )
+
+    try:
+        text = response.candidates[0].content.parts[0].text.strip()
+    except Exception as e:
+        print("Error reading Gemini response:", e)
+        text = ""
+
+    place_descriptions = {}
+    for line in text.split("\n"):
+        if ":" in line:
+            name, desc = line.split(":", 1)
+            place_descriptions[name.strip()] = desc.strip()
+
+    return [place_descriptions.get(p, "") for p in places]
