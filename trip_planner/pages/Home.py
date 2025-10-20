@@ -1,5 +1,8 @@
 import streamlit as st
 from utils import init_session_state, logout
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+import Utilities.databaseManager as databaseManager
 
 init_session_state()
 st.set_page_config(page_title="Home", page_icon="🏠", layout="centered")
@@ -81,14 +84,14 @@ st.divider()
 st.subheader("📚 Your Saved Trips")
 
 # ---- Clickable HTML Cards ----
-if st.session_state.saved_trips:
-    for i, trip in enumerate(st.session_state.saved_trips, start=1):
+
+saved_trips = databaseManager.get_saved_trips()
+
+if saved_trips:
+    for i, trip in enumerate(saved_trips, start=1):
         place = trip.get("Place Name", f"Trip {i}")
         scenario = trip.get("Scenario", "Adventure")
-        description = trip.get(
-            "Description",
-            "A perfect spot for travelers looking for something special and unforgettable."
-        )
+        description = trip.get("Description", "No description available")
 
         with st.container():
             if st.button(f"{i}. {place} ✨ {scenario}", key=f"trip_{i}", use_container_width=True):
@@ -100,4 +103,5 @@ if st.session_state.saved_trips:
                 unsafe_allow_html=True
             )
 else:
-    st.info("No trips saved yet. Start exploring! ✈️")
+    st.warning("No saved trips found.")
+    st.info("Explore and save trips to see them listed here.")

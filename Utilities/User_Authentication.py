@@ -31,6 +31,7 @@ def register(username, password, confirm_password, email):
 
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     users.insert_one({"username": username, "password": hashed_pw, "email": email})
+
     return "User registered successfully!"
 
 def login(username, password):
@@ -52,3 +53,4 @@ def login(username, password):
         return login
         
     return False  
+

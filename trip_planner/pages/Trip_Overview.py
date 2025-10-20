@@ -1,10 +1,13 @@
 import streamlit as st
-from datetime import datetime
 from streamlit_folium import st_folium
 import folium
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from Utilities import databaseManager
+from API_Handlers import WeatherHandler
+import agents
 st.set_page_config(page_title="Trip Overview", page_icon="🧭", layout="wide")
 
 # ----------------- Retrieve Trip -----------------
@@ -47,12 +50,25 @@ with left_col:
     st.subheader("💬 Trip Assistant Chatbot")
     st.markdown("Ask anything about your destination!")
 
-    user_input = st.text_input("You:", placeholder="e.g. What’s the best time to visit?")
-    if user_input:
-        st.chat_message("user").markdown(user_input)
-        st.chat_message("assistant").markdown(
-            f"🤖 That’s a great question! Soon I’ll provide travel insights about **{place}** here."
-        )
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+
+    with st.form(key="chat_form", clear_on_submit=True):
+        user_input = st.text_input("You:", placeholder="e.g. What’s the best time to visit?")
+        send = st.form_submit_button("Send")
+
+    if send and user_input:
+        conversation_history = st.session_state.get("chat_history")
+        conversation_history.append({"role": "user", "content": user_input})
+        response = agents.enquiry_agent_chatbot(conversation_history, user_input,st.session_state.get("weather_info",""))
+        conversation_history.append({"role": "assistant", "content": response})
+        st.session_state["chat_history"] = conversation_history
+    for message in st.session_state["chat_history"]:
+        if message['role'] == 'user':
+            st.chat_message("user").markdown(f"{message['content']}")
+        else:
+            st.chat_message("assistant").markdown(f"{message['content']}")
+
 
 # ----------------- RIGHT COLUMN (Map, Weather, News) -----------------
 with right_col:
@@ -79,7 +95,20 @@ with right_col:
         st_folium(m, width=700, height=400)
 
     with st.expander("🌦️ Weather Information", expanded=False):
-        st.info(f"🌤️ Weather data for {place} will appear here (API integration placeholder).")
+        print("Trip Data:", trip)
+        print("Place Value:", repr(place))
+        print("Type of Place:", type(place))
+
+        print("Fetching weather data...")
+        weather_details = WeatherHandler.Weather_Explainer(lat, lon, place)
+        st.session_state.weather_info = weather_details
+        print("Weather Explanation Generated.")
+        print(weather_details)
+        
+        # add a loading screen while fetching weather data
+        with st.spinner('Fetching weather data...'):
+        
+            st.write(weather_details)
 
     with st.expander("📰 Local News", expanded=False):
         st.info(f"🗞️ Latest news about {place} will appear here (API integration placeholder).")
@@ -91,20 +120,10 @@ col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("💾 Save Trip"):
         try:
-            trip_to_save = trip.copy()
-            trip_to_save["Saved Date"] = str(datetime.now().date())
-            print(f"Saving trip: {trip_to_save}")
 
-            if "saved_trips" not in st.session_state:
-                st.session_state.saved_trips = []
-            if trip_to_save not in st.session_state.saved_trips:
-                st.session_state.saved_trips.append(trip_to_save)
-                print(f"Stored saved_trips in st.session_state: {st.session_state.saved_trips}")
-                st.success("Trip saved! View it on Home 🏡")
-            else:
-                st.info("This trip is already saved.")
+            databaseManager.save_a_trip(trip)
+            st.success("Trip saved successfully!")
         except Exception as e:
-            print(f"Error saving trip: {e}")
             st.error(f"Error saving trip: {e}")
 
 with col2:
