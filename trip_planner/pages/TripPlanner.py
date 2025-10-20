@@ -3,6 +3,7 @@ import time
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from Utilities import explore
+from Utilities import databaseManager
 
 st.set_page_config(page_title="Explore", page_icon="🌍", layout="centered")
 
@@ -93,7 +94,7 @@ if "places" in st.session_state and st.session_state.places:
 
     for i, place in enumerate(st.session_state.places):
         desc = st.session_state.descriptions[i][:180] + "..."  # short description
-
+        full_desc = st.session_state.descriptions[i]
         st.markdown(
             f"""
             <div class="place-box">
@@ -111,8 +112,9 @@ if "places" in st.session_state and st.session_state.places:
                 "Duration": duration,
                 "People": triptype,
                 "Transport": transport,
-                "Description": desc,
+                "Description": full_desc
             }
+            curr_trip = st.session_state.current_trip
             st.success(f"Selected {place}! Redirecting to Trip Overview...")
             time.sleep(1)
             st.switch_page("pages/Trip_Overview.py")

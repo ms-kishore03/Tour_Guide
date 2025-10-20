@@ -1,53 +1,52 @@
 import requests
 from dotenv import load_dotenv
-import os
-
+import os,sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import agents
 load_dotenv(".env")
 API_Key = os.getenv("OpenWeatherMap_API_Key")
 
-def get_coordinates(city):
-    limit = 1
-
-    get_geographical_coordinates = f"http://api.openweathermap.org/geo/1.0/direct?q={city}&limit={limit}&appid={API_Key}"
-
-    geo_res = requests.get(get_geographical_coordinates).json()
-    lat = geo_res[0]["lat"]
-    lon = geo_res[0]["lon"]
-    return lat, lon
-
-def current_weather_info(city):
-    lat,lon = get_coordinates(city)
+def current_weather_info(lat,lon,city):
     
-    get_climate_values = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_Key}"
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_Key}"
+    res = requests.get(url).json()
 
-    climate_res = requests.get(get_climate_values).json()
+    if "weather" not in res:
+        return f"Could not retrieve weather for {city}. Response: {res}"
 
-    return(
-        f"The weather is:", {climate_res['weather'][0]['description']},
-        f"and the temperature is:", {climate_res['main']['temp']}, "K.",
-        f"The humidity is:", {climate_res['main']['humidity']}, "%.",
-        f"The max temperature is:", {climate_res['main']['temp_max']}, "K,",
-        f"and the min temperature is:", {climate_res['main']['temp_min']}, "K.",
-        f"The latitude is:", {lat},
-        f"and the longitude is:", {lon}
+    return (
+        f"The weather in {city} is {res['weather'][0]['description']} with "
+        f"temperature {res['main']['temp']} K, humidity {res['main']['humidity']}%, "
+        f"max {res['main']['temp_max']} K, min {res['main']['temp_min']} K. "
+        f"(lat: {lat}, lon: {lon})"
     )
 
-def forecast_weather_info(city):
 
-    lat, lon = get_coordinates(city)
-    get_forecast_values = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={API_Key}"
+def forecast_weather_info(lat,lon,city):
 
-    forecast_res = requests.get(get_forecast_values).json()
+    url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={API_Key}"
+    res = requests.get(url).json()
 
-    forecast_list = []
-    for forecast in forecast_res['list']:
-        forecast_list.append(
-            {
-                "datetime": forecast['dt_txt'],
-                "temperature": forecast['main']['temp'],
-                "weather": forecast['weather'][0]['description'],
-                "humidity": forecast['main']['humidity']
-            }
-        )
-    
-    return forecast_list
+    if "list" not in res:
+        return f"Could not retrieve forecast for {city}. Response: {res}"
+
+    return [
+        {
+            "datetime": f["dt_txt"],
+            "temperature": f["main"]["temp"],
+            "weather": f["weather"][0]["description"],
+            "humidity": f["main"]["humidity"],
+        }
+        for f in res["list"]
+    ]
+
+def Weather_Explainer(lat,long,city):
+    current_data = current_weather_info(lat,long,city)
+    forecast_data = forecast_weather_info(lat,long,city)
+    print(current_data)
+    print(forecast_data)
+    explanation = agents.Weather_Explainer_Agent(current_data,forecast_data)
+    return explanation
+
+
+print(Weather_Explainer(10.0869959,77.0600915,"Munnar"))
