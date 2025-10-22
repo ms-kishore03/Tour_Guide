@@ -4,13 +4,14 @@ from dotenv import load_dotenv
 import Utilities.databaseManager as databaseManager
 
 load_dotenv()
+db = databaseManager.client['Tour_Guide']
+places_collection = db['Places_Database']
 
 # ---------- FUNCTION 1: Suggest Places ----------
 def suggest_places(Trip_Theme, Specific_Activity, Climate, budget, duration, Location, TripType, Transport):
     # Check if entry exists in MongoDB
-    db = databaseManager.client['Tour_Guide']
-    places_collection = db['Places_Database']
-    existing_entry = places_collection.collection.find_one({
+
+    existing_entry = places_collection.find_one({
         "Trip_Theme": Trip_Theme,
         "Specific_Activity": Specific_Activity,
         "Climate": Climate,

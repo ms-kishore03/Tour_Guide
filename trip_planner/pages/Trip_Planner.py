@@ -30,7 +30,7 @@ with col2:
         for key in list(st.session_state.keys()):
             if key not in ["user"]:
                 del st.session_state[key]
-        st.experimental_rerun()
+        st.rerun()
 
 # ---------- Logic ----------
 if find_button:

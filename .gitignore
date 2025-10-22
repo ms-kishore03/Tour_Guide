@@ -5,6 +5,7 @@ qwe
 venv/
 ENV/
 env/
+.github/
 
 
 # Python cache

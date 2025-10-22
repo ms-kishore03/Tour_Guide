@@ -16,11 +16,27 @@ def init_session_state():
         if k not in st.session_state:
             st.session_state[k] = v
 
+
 def logout():
-    st.session_state.user = None
-    st.session_state.explore_step = 1
-    st.session_state.trip_preferences = {}
-    st.session_state.destination_suggestions = []
-    st.session_state.current_trip = None
+    # List all session variables you want cleared on logout
+    keys_to_clear = [
+        "user",
+        "saved_trips",
+        "current_trip",
+        "trip_preferences",
+        "destination_suggestions",
+        "explore_step",
+        "scenario",
+        "activity",
+        "climate",
+        "chat_history",
+        "weather_info",
+    ]
+
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+
+    # Redirect to login/register page
     st.switch_page("Login_Register.py")
     st.stop()

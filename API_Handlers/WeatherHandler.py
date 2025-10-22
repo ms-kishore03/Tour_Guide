@@ -47,6 +47,3 @@ def Weather_Explainer(lat,long,city):
     print(forecast_data)
     explanation = agents.Weather_Explainer_Agent(current_data,forecast_data)
     return explanation
-
-
-print(Weather_Explainer(10.0869959,77.0600915,"Munnar"))
