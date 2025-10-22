@@ -1,13 +1,13 @@
 import streamlit as st
-from streamlit_folium import st_folium
-import folium
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 import sys, os
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from Utilities import databaseManager
 from API_Handlers import WeatherHandler
 import agents
+
 st.set_page_config(page_title="Trip Overview", page_icon="🧭", layout="wide")
 
 # ----------------- Retrieve Trip -----------------
@@ -43,10 +43,48 @@ st.markdown(f"""
 st.divider()
 
 # ----------------- Split Layout -----------------
-left_col, right_col = st.columns([1, 2])  # Left: Chatbot | Right: Map/Weather/News
+left_col, right_col = st.columns([1, 1])  # Left: Weather + Things to Do | Right: Chatbot
 
-# ----------------- LEFT COLUMN (Chatbot) -----------------
+# ----------------- LEFT COLUMN -----------------
 with left_col:
+    # --- Get Coordinates for Weather ---
+    try:
+        geolocator = Nominatim(user_agent="trip_planner_app")
+        location = geolocator.geocode(place, timeout=10)
+        if location:
+            lat, lon = location.latitude, location.longitude
+            print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
+        else:
+            lat, lon = 0, 0
+            st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
+    except (GeocoderTimedOut, GeocoderUnavailable) as e:
+        lat, lon = 0, 0
+        st.warning(f"Geocoding error for {place}: {e}. Defaulting to (0, 0).")
+
+    # --- Things to Do Section ---
+    with st.expander("🧳 Things to Do", expanded=True):
+        st.write("Discover fun activities, attractions, and local experiences around your destination.")
+        st.write("Here are a few suggestions:")
+        # Placeholder for integration with agents or API
+        things_to_do = agents.get_things_to_do(place) if hasattr(agents, "get_things_to_do") else [
+            "Visit local landmarks and cultural sites",
+            "Try traditional cuisine at popular restaurants",
+            "Explore nearby nature trails or beaches",
+            "Attend a local event or festival",
+        ]
+        for item in things_to_do:
+            st.markdown(f"- {item}")
+
+    # --- Weather Information Section ---
+    with st.expander("🌦️ Weather Information", expanded=True):
+        print("Fetching weather data for:", place)
+        weather_details = WeatherHandler.Weather_Explainer(lat, lon, place)
+        st.session_state.weather_info = weather_details
+        with st.spinner('Fetching weather data...'):
+            st.write(weather_details)
+
+# ----------------- RIGHT COLUMN -----------------
+with right_col:
     st.subheader("💬 Trip Assistant Chatbot")
     st.markdown("Ask anything about your destination!")
 
@@ -60,73 +98,40 @@ with left_col:
     if send and user_input:
         conversation_history = st.session_state.get("chat_history")
         conversation_history.append({"role": "user", "content": user_input})
-        response = agents.enquiry_agent_chatbot(conversation_history, user_input,st.session_state.get("weather_info",""))
+        response = agents.enquiry_agent_chatbot(
+            conversation_history, user_input, st.session_state.get("weather_info", "")
+        )
         conversation_history.append({"role": "assistant", "content": response})
         st.session_state["chat_history"] = conversation_history
+
     for message in st.session_state["chat_history"]:
         if message['role'] == 'user':
             st.chat_message("user").markdown(f"{message['content']}")
         else:
             st.chat_message("assistant").markdown(f"{message['content']}")
 
-
-# ----------------- RIGHT COLUMN (Map, Weather, News) -----------------
-with right_col:
-    # --- Get Coordinates for Map ---
-    try:
-        geolocator = Nominatim(user_agent="trip_planner_app")
-        location = geolocator.geocode(place, timeout=10)
-        if location:
-            lat, lon = location.latitude, location.longitude
-            print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
-        else:
-            lat, lon = 0, 0
-            st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
-            print(f"Geocoding failed for {place}: No location found")
-    except (GeocoderTimedOut, GeocoderUnavailable) as e:
-        lat, lon = 0, 0
-        st.warning(f"Geocoding error for {place}: {e}. Defaulting to (0, 0).")
-        print(f"Geocoding error for {place}: {e}")
-
-    # --- Expanders for Info Sections ---
-    with st.expander("🗺️ View Map", expanded=True):
-        m = folium.Map(location=[lat, lon], zoom_start=11)
-        folium.Marker([lat, lon], popup=place).add_to(m)
-        st_folium(m, width=700, height=400)
-
-    with st.expander("🌦️ Weather Information", expanded=False):
-        print("Trip Data:", trip)
-        print("Place Value:", repr(place))
-        print("Type of Place:", type(place))
-
-        print("Fetching weather data...")
-        weather_details = WeatherHandler.Weather_Explainer(lat, lon, place)
-        st.session_state.weather_info = weather_details
-        print("Weather Explanation Generated.")
-        print(weather_details)
-        
-        # add a loading screen while fetching weather data
-        with st.spinner('Fetching weather data...'):
-        
-            st.write(weather_details)
-
-    with st.expander("📰 Local News", expanded=False):
-        st.info(f"🗞️ Latest news about {place} will appear here (API integration placeholder).")
-
 st.divider()
 
 # ----------------- Bottom Action Buttons -----------------
-col1, col2 = st.columns([1, 1])
+col1, col2, col3 = st.columns([1, 1, 1])
+
 with col1:
     if st.button("💾 Save Trip"):
         try:
-
             databaseManager.save_a_trip(trip)
             st.success("Trip saved successfully!")
         except Exception as e:
             st.error(f"Error saving trip: {e}")
 
 with col2:
+    if st.button("🚀 Start Planning"):
+        st.session_state["planning_started"] = True
+        st.success("Let's start planning your adventure!")
+        st.switch_page("pages/Trip_Itinerary.py")
+        # Optional: redirect to a planning page
+        # st.switch_page("pages/Plan_Trip.py")
+
+with col3:
     if st.button("⬅️ Back to Home"):
         print("Navigating back to Home.py")
         st.switch_page("pages/Home.py")

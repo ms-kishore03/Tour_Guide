@@ -74,7 +74,7 @@ st.markdown('<div class="button-container">', unsafe_allow_html=True)
 col1, col2 = st.columns([1, 1])
 with col1:
     if st.button(" Explore Trips", use_container_width=True):
-        st.switch_page("pages/TripPlanner.py")
+        st.switch_page("pages/Trip_Planner.py")
 with col2:
     if st.button("Logout", use_container_width=True):
         logout()
@@ -103,5 +103,4 @@ if saved_trips:
                 unsafe_allow_html=True
             )
 else:
-    st.warning("No saved trips found.")
     st.info("Explore and save trips to see them listed here.")
