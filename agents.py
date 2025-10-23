@@ -1,7 +1,11 @@
 from google import genai
 import os
 from dotenv import load_dotenv
+import re
+import json
 load_dotenv()
+
+
 def Weather_Explainer_Agent(current_data,forecast_data):
 
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -61,13 +65,17 @@ def get_attractive_points(destination):
     
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents= f"""You are a travel guide agent. You are given a destination: {destination}. 
+        contents=f"""You are a travel guide agent. You are given a destination: {destination}. 
             Your task is to provide a list of top 10 attractive points of interest for tourists visiting this destination.
-            Just provide the list without any additional explanations."""
+            Return only the names of places as a simple numbered list, one per line."""
     )
+
     try:
         text_output = response.candidates[0].content.parts[0].text.strip()
-        return text_output
+
+        # Split by newlines and remove numbering or extra spaces
+        lines = [line.strip().lstrip("0123456789.-) ").strip() for line in text_output.split("\n") if line.strip()]
+        return lines
+
     except Exception as e:
-        text_output = "Could not generate attractive points at this time."
-        return text_output
+        return ["Could not generate attractive points at this time."]
