@@ -55,3 +55,33 @@ def get_saved_trips():
     # Extract trip_data (each is a dict)
     trips = [entry["trip_data"] for entry in saved_trips if "trip_data" in entry]
     return trips
+
+def start_trip(trip_details):
+    
+    db = client['Tour_Guide']
+    collection = db['Trips_Started']
+
+    username = st.session_state.user
+    trip_data = trip_details
+    if not username:
+        return "User not logged in."
+    
+    elif not trip_data:
+        return "No trip data."
+    
+    trip_entry = {
+        "username": username,
+        "trip_data": trip_data
+    }
+
+    collection.insert_one(trip_entry)
+    return True
+    
+
+def airport_codes(name):
+    db = client["Tour_Guide"]
+    collection = db["Airports"]
+    airport = collection.find_one({"name": {"$regex": name, "$options": "i"}})
+    if airport:
+        return airport.get("code")
+    return None

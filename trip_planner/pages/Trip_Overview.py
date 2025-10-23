@@ -53,7 +53,7 @@ with left_col:
         location = geolocator.geocode(place, timeout=10)
         if location:
             lat, lon = location.latitude, location.longitude
-            print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
+            #print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
         else:
             lat, lon = 0, 0
             st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
@@ -66,18 +66,13 @@ with left_col:
         st.write("Discover fun activities, attractions, and local experiences around your destination.")
         st.write("Here are a few suggestions:")
         # Placeholder for integration with agents or API
-        things_to_do = agents.get_things_to_do(place) if hasattr(agents, "get_things_to_do") else [
-            "Visit local landmarks and cultural sites",
-            "Try traditional cuisine at popular restaurants",
-            "Explore nearby nature trails or beaches",
-            "Attend a local event or festival",
-        ]
-        for item in things_to_do:
-            st.markdown(f"- {item}")
+        places = agents.get_attractive_points(place)
+        for idx,place in enumerate(places, start=1):
+            st.markdown(f"{idx}. {place}")
 
     # --- Weather Information Section ---
     with st.expander("🌦️ Weather Information", expanded=True):
-        print("Fetching weather data for:", place)
+        #print("Fetching weather data for:", place)
         weather_details = WeatherHandler.Weather_Explainer(lat, lon, place)
         st.session_state.weather_info = weather_details
         with st.spinner('Fetching weather data...'):
@@ -104,7 +99,7 @@ with right_col:
         conversation_history.append({"role": "assistant", "content": response})
         st.session_state["chat_history"] = conversation_history
 
-    for message in st.session_state["chat_history"]:
+    for message in reversed(st.session_state["chat_history"]):
         if message['role'] == 'user':
             st.chat_message("user").markdown(f"{message['content']}")
         else:
@@ -126,10 +121,13 @@ with col1:
 with col2:
     if st.button("🚀 Start Planning"):
         st.session_state["planning_started"] = True
-        st.success("Let's start planning your adventure!")
-        st.switch_page("pages/Trip_Itinerary.py")
-        # Optional: redirect to a planning page
-        # st.switch_page("pages/Plan_Trip.py")
+        try:
+            res = databaseManager.start_trip(trip)
+            if res:
+                st.success("Let's start planning your adventure!")
+                st.switch_page("pages/Trip_Itinerary.py")
+        except Exception as e:
+            st.error(f"Error starting trip: {e}")
 
 with col3:
     if st.button("⬅️ Back to Home"):
