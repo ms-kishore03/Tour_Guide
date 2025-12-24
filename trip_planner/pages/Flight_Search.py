@@ -2,10 +2,11 @@ import streamlit as st
 from datetime import date, timedelta
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+import agents
 from API_Handlers import FlightHandler
 
 # --- Page Config ---
-st.set_page_config(page_title="✈️ Flight Finder", page_icon="✈️", layout="centered")
+st.set_page_config(page_title="Flight Finder", page_icon="✈️", layout="centered")
 
 # --- Default querystring ---
 
@@ -44,8 +45,8 @@ if submitted:
     st.success("Searching for flights... ✈️")
 
     #get airport codes
-    departure_id = FlightHandler.get_airport_id(departure)
-    arrival_id = FlightHandler.get_airport_id(arrival)
+    departure_id = agents.get_airport_id(departure)
+    arrival_id = agents.get_airport_id(arrival)
 
     st.write("### Generated Query Parameters")
     flight_options = FlightHandler.get_flight_info(departure_id,arrival_id,
