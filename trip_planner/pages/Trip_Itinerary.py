@@ -77,11 +77,7 @@ with itinerary_col:
     st.write("View or edit your travel plan here.")
 
     if "itinerary_list" not in st.session_state:
-        st.session_state["itinerary_list"] = [
-            "Day 1: Arrival & Local City Tour",
-            "Day 2: Museum Visit & Evening Cruise",
-            "Day 3: Shopping & Departure",
-        ]
+        st.session_state["itinerary_list"] = []
 
     for idx, item in enumerate(st.session_state["itinerary_list"], start=1):
         st.markdown(f"**{idx}.** {item}")
@@ -92,3 +88,8 @@ with itinerary_col:
         if new_item.strip():
             st.session_state["itinerary_list"].append(new_item.strip())
             st.success("Itinerary item added!")
+
+left, center, right = st.columns([1, 1, 1])
+
+with center:
+    st.button("Start Trip")

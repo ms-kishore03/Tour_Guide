@@ -43,7 +43,7 @@ def forecast_weather_info(lat,lon,city):
 def Weather_Explainer(lat,long,city):
     current_data = current_weather_info(lat,long,city)
     forecast_data = forecast_weather_info(lat,long,city)
-    print(current_data)
-    print(forecast_data)
-    explanation = agents.Weather_Explainer_Agent(current_data,forecast_data)
+    #print(current_data)
+    #print(forecast_data)
+    explanation = agents.Weather_Explainer_Agent(city,current_data,forecast_data)
     return explanation

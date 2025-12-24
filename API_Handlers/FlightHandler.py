@@ -9,10 +9,12 @@ from Utilities import databaseManager
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 API_Key = os.getenv("Flight_API_Key")
 
-def get_airport_id(city_name):
-    code = databaseManager.airport_codes(city_name)
-    return code
-
+#def get_airport_id(city_name):
+#    print("Fetching airport code for city:", city_name)
+#    code = databaseManager.airport_codes(city_name)
+#    print(code)
+#    return code
+#
     #url = "https://google-flights2.p.rapidapi.com/api/v1/searchAirport"
 #
 #    #querystring = {"query": city_name, "language_code": "en-US", "country_code": "US"}

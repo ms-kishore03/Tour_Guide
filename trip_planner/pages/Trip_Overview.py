@@ -67,8 +67,8 @@ with left_col:
         st.write("Here are a few suggestions:")
         # Placeholder for integration with agents or API
         places = agents.get_attractive_points(place)
-        for idx,place in enumerate(places, start=1):
-            st.markdown(f"{idx}. {place}")
+        for idx,p in enumerate(places, start=1):
+            st.markdown(f"{idx}. {p}")
 
     # --- Weather Information Section ---
     with st.expander("🌦️ Weather Information", expanded=True):
@@ -93,7 +93,7 @@ with right_col:
     if send and user_input:
         conversation_history = st.session_state.get("chat_history")
         conversation_history.append({"role": "user", "content": user_input})
-        response = agents.enquiry_agent_chatbot(
+        response = agents.chatbot(
             conversation_history, user_input, st.session_state.get("weather_info", "")
         )
         conversation_history.append({"role": "assistant", "content": response})
@@ -115,6 +115,7 @@ with col1:
         try:
             databaseManager.save_a_trip(trip)
             st.success("Trip saved successfully!")
+            st.switch_page("pages/Home.py")
         except Exception as e:
             st.error(f"Error saving trip: {e}")
 
