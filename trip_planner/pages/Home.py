@@ -92,15 +92,22 @@ if saved_trips:
         place = trip.get("Place Name", f"Trip {i}")
         scenario = trip.get("Scenario", "Adventure")
         description = trip.get("Description", "No description available")
-
+        trip_place, trip_remove = st.columns([4, 1])
         with st.container():
-            if st.button(f"{i}. {place} ✨ {scenario}", key=f"trip_{i}", use_container_width=True):
-                st.session_state.current_trip = trip
-                st.switch_page("pages/Trip_Overview.py")
-
+            with trip_place:
+                if st.button(f"{i}. {place}", key=f"trip_{i}", use_container_width=True):
+                    st.session_state.current_trip = trip
+                    st.switch_page("pages/Trip_Overview.py")
+            with trip_remove:
+                if st.button("Delete", key=f"delete_trip_{i}", use_container_width=True, type="primary"):
+                    if databaseManager.delete_saved_trip(trip):
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete trip.")
+                    
             st.markdown(
-                f"<div class='trip-desc'>{description}</div>",
-                unsafe_allow_html=True
-            )
+                    f"<div class='trip-desc'>{description}</div>",
+                    unsafe_allow_html=True
+                )
 else:
     st.info("Explore and save trips to see them listed here.")

@@ -11,6 +11,8 @@ def init_session_state():
         "scenario": None,
         "activity": "",
         "climate": "No Preference",
+        "searching": False,
+        "chat_history": [],
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -31,6 +33,7 @@ def logout():
         "climate",
         "chat_history",
         "weather_info",
+        "searching",
     ]
 
     for key in keys_to_clear:

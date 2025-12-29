@@ -1,6 +1,7 @@
 from pymongo import MongoClient
 import bcrypt
 import streamlit as st
+from datetime import datetime, timezone, timedelta
 
 client = MongoClient('mongodb+srv://tester_username:tester_password@ai-tour-guide.mzeft5j.mongodb.net/')
 
@@ -26,24 +27,74 @@ def insert_place(Trip_Theme, Specific_Activity, Climate, budget, duration, Locat
     collection.insert_one(place_entry)
     return "Place data inserted successfully!"
 
-def save_a_trip(trip_details):
-    username = st.session_state.user
+def set_things_to_do(destination, interests):
+    if not destination or not interests:
+        return {"status": "error", "message": "Destination or interests missing"}
+    
     db = client['Tour_Guide']
-    collection = db['Saved_Trips']
-    trip_data = trip_details
+    collection = db["Things_To_Do"]
+
+    match = collection.find_one({
+        "destination": destination,
+        "interests": interests
+    })
+
+    if match:
+        return {"status": "exists"}
+    
+    now = datetime.now()
+    collection.insert_one({
+        "destination": destination,
+        "interests": interests,
+        "timestamp": now
+    })
+    return {"status": "saved"}
+
+def get_things_to_do(destination):
+    if not destination:
+        return {"status": "error", "data": None}
+
+    db = client['Tour_Guide']
+    collection = db["Things_To_Do"]
+
+    entry = collection.find_one({"destination": destination})
+    if not entry:
+        return {"status": "error", "data": None}
+
+    updated_at = entry.get("timestamp")
+    if not updated_at or datetime.now() - updated_at > timedelta(weeks=2):
+        collection.delete_one({"_id": entry["_id"]})
+        return {"status": "error", "data": None}
+
+    return {"status": "ok", "data": entry.get("interests", [])}
+
+def save_a_trip(trip_details):
+    username = st.session_state.get("user")
 
     if not username:
-        return "User not logged in."
-    
-    elif not trip_data:
-        return "No trip data."
+        return {"status": "error", "message": "User not logged in"}
 
-    trip_entry = {
+    if not trip_details:
+        return {"status": "error", "message": "No trip data"}
+
+    db = client["Tour_Guide"]
+    collection = db["Saved_Trips"]
+
+    match = collection.find_one({
         "username": username,
-        "trip_data": trip_data
-    }
-    collection.insert_one(trip_entry)
-    return "Trip saved successfully!"
+        "trip_data": trip_details
+    })
+
+    if match:
+        return {"status": "exists"}
+
+    collection.insert_one({
+        "username": username,
+        "trip_data": trip_details
+    })
+
+    return {"status": "saved"}
+
 
 def get_saved_trips():
     username = st.session_state.user
@@ -56,22 +107,47 @@ def get_saved_trips():
     trips = [entry["trip_data"] for entry in saved_trips if "trip_data" in entry]
     return trips
 
-def start_trip(trip_details):
-    
-    db = client['Tour_Guide']
-    collection = db['Trips_Started']
-
+def delete_saved_trip(trip):
     username = st.session_state.user
-    trip_data = trip_details
+    db = client['Tour_Guide']
+    collection = db['Saved_Trips']
+
+    if not username:
+        return "User not logged in."
+
+    elif not trip:
+        return "No trip data."
+
+    result = collection.delete_one({"username": username, "trip_data": trip})
+
+    if result.deleted_count > 0:
+        return True
+    else:
+        return False
+
+
+def trip_plan(trip_details):
+    
+    username = st.session_state.user
     if not username:
         return "User not logged in."
     
-    elif not trip_data:
+    elif not trip_details:
         return "No trip data."
+
+    db = client['Tour_Guide']
+    collection = db['Planning_Trips']    
+    
+    match = collection.find_one({
+        "username": username,
+        "trip_data": trip_details
+    })
+    if match:
+        return True
     
     trip_entry = {
         "username": username,
-        "trip_data": trip_data
+        "trip_data": trip_details
     }
 
     collection.insert_one(trip_entry)

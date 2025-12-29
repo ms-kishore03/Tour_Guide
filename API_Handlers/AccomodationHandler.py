@@ -1,8 +1,13 @@
-# booking_autocomplete.py
-# Run this in VS Code with: python booking_autocomplete.py
-
 import requests
 import json
+import agents
+import re
+import os
+from dotenv import load_dotenv
+
+# ✅ Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+API_Key = os.getenv("Accomodation_API_KEY")
 
 def get_location_autocomplete(query):
     url = "https://booking-com18.p.rapidapi.com/stays/auto-complete"
@@ -12,7 +17,7 @@ def get_location_autocomplete(query):
     }
 
     headers = {
-        "x-rapidapi-key": "72ce0bd498msh5560318f80c4955p1c1164jsn455a66af5326",
+        "x-rapidapi-key": API_Key,
         "x-rapidapi-host": "booking-com18.p.rapidapi.com"
     }
 
@@ -22,7 +27,6 @@ def get_location_autocomplete(query):
     response.raise_for_status()
 
     return response.json()
-
 
 def search_stays(location_id, checkin, checkout):
     url = "https://booking-com18.p.rapidapi.com/stays/search"
@@ -36,7 +40,7 @@ def search_stays(location_id, checkin, checkout):
     }
 
     headers = {
-        "x-rapidapi-key": "72ce0bd498msh5560318f80c4955p1c1164jsn455a66af5326",
+        "x-rapidapi-key": API_Key,
         "x-rapidapi-host": "booking-com18.p.rapidapi.com"
     }
 
@@ -44,27 +48,22 @@ def search_stays(location_id, checkin, checkout):
     response.raise_for_status()
     return response.json()
 
-
-if __name__ == "__main__":
-    city = "Munnar"
-    loc_res = get_location_autocomplete(city)
-
-    # Pretty print JSON output
-    #print(json.dumps(loc_res, indent=4))
+def get_accomodations(location,checkin,checkout):
+    loc_res = get_location_autocomplete(location)
     loc_id = loc_res["data"][0]["id"]
-    print(f"Location ID for {city}: {loc_id}")
-    checkin_date = "2026-01-02"
-    checkout_date = "2026-01-08"
+    stay_res = search_stays(loc_id, checkin, checkout)
 
-    stay_res = search_stays(loc_id, checkin_date, checkout_date)
-    # Pretty-print full response
-    #print(json.dumps(stay_res, indent=4))
-    names=[]
+    names = []
     for i in range(10,0,-1):
         hotel_name = stay_res["data"][i]["name"]
         names.append(hotel_name)
-    print("Top 5 hotel names:")
-    for name in names:
-        print(name)
+    
+    accomodations_list = agents.retieve_hotel_names(location,names)
+    lines = accomodations_list.splitlines()
+    clean = []
 
-
+    for line in lines:
+        match = re.match(r"\d+\.\s*(.+)", line)
+        if match:
+            clean.append(match.group(1).strip())
+    return clean
