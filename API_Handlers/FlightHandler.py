@@ -2,6 +2,7 @@ import requests
 import os
 from dotenv import load_dotenv
 import sys
+import pandas as pd
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from Utilities import databaseManager
 
@@ -116,19 +117,19 @@ def get_flight_info(departure_airport, arrival_airport, departure_date, return_d
         carbon = flight.get("carbon_emissions", {})
         carbon_diff = carbon.get("difference_percent", "N/A")
 
-        flight_info = f"""
-✈️ **{airline} {flight_number}**
-From **{departure_airport_name} ({departure_airport_code})** → **{arrival_airport_name} ({arrival_airport_code})**
-🕒 Departure: {dept_time} | Arrival: {arr_time}
-⏱ Duration: {duration}
-💼 Layovers: {layover_count} | Carry-on: {carry_on} | Checked: {checked_bags}
-💰 Price: {currency} {price} | 🌿 Carbon: {carbon_diff}%
----
-"""
-        flight_options.append(flight_info)
+        flight_options.append({
+        "Airline": airline,
+        "Flight #": flight_number,
+        "From": f"{departure_airport_name} ({departure_airport_code})",
+        "To": f"{arrival_airport_name} ({arrival_airport_code})",
+        "Departure": dept_time,
+        "Arrival": arr_time,
+        "Duration": duration,
+        "Layovers": len(layovers),
+        "Carry-on": bags.get("carry_on", "N/A"),
+        "Checked Bags": bags.get("checked", "N/A"),
+        "Price": f"{currency} {flight.get('price', 'N/A')}",
+        "Carbon Δ (%)": carbon.get("difference_percent", "N/A")
+    })
 
-    if not flight_options:
-        return ["No flights found for the selected criteria."]
-
-    return flight_options
-
+    return pd.DataFrame(flight_options)

@@ -8,7 +8,7 @@ import re
 import json
 load_dotenv()
 
-def enquiry_agent_chatbot(conversation_history,user_input,weather_info):
+def enquiry_agent_chatbot(conversation_history,user_input,weather_info,place,attractive_points):
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     
     conversation = ""
@@ -21,11 +21,22 @@ def enquiry_agent_chatbot(conversation_history,user_input,weather_info):
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents= f"""You are a friendly travel chatbot assisting tourists.
-                You have access to weather details: {weather_info} and past conversation: {conversation}.
-                Use these as helpful context, but you can also draw on your own general travel knowledge when needed.
-                If certain details (like entry fees, timings, or local tips) aren't in the given info, provide reasonable estimates or widely known facts — 
-                but make it sound natural, as if chatting with a traveler.
-                Keep replies under 100 words, conversational, and easy to follow."""
+
+            Destination: {place}
+
+            Context you can use:
+            - Suggested attractions in {place}: {', '.join(attractive_points)}
+            - Current weather details: {weather_info}
+            - Previous conversation: {conversation}
+
+            Instructions:
+            - Answer like a helpful local travel guide.
+            - When mentioning attractions, briefly explain why tourists enjoy them.
+            - Use the provided attractions first, but you may add well-known ones if relevant.
+            - If you genuinely don’t know something about the place, say so politely.
+            - If details like timings or fees are missing, give reasonable, commonly known estimates.
+            - Keep responses conversational, natural, and under 100 words.
+        """
     )
     try:
         text_output = response.candidates[0].content.parts[0].text.strip()
@@ -92,7 +103,7 @@ def get_attractive_points(destination):
         return ["Could not generate attractive points at this time."]
 
 
-def chatbot(conversation_history,user_input,weather_info):
+def chatbot(conversation_history,user_input,weather_info,place,attractive_points):
     llm = ChatGroq(groq_api_key=os.getenv("GROG_API_KEY"), model_name="llama-3.3-70b-versatile")
     
     conversation = ""
@@ -104,6 +115,8 @@ def chatbot(conversation_history,user_input,weather_info):
 
     prompt = f"""
                 You are a friendly travel chatbot assisting tourists.
+                The place being discussed is {place}.
+                Here are some attractive points of interest in {place}: {', '.join(attractive_points)}. Keep in mind these places while answering and these are suggested by you. So while answering try explaining why these places are attractive to tourists.
                 You have access to weather details: {weather_info} and past conversation: {conversation}.
                 Use these as helpful context, but you can also draw on your own general travel knowledge when needed.
                 If certain details (like entry fees, timings, or local tips) aren't in the given info, provide reasonable estimates or widely known facts — 
@@ -142,3 +155,25 @@ def get_airport_id(city):
     Your task is to provide the corresponding IATA airport code for the main airport in that city. No additional explanations are needed.
     """
     return llm.invoke(prompt).content.strip().upper()
+
+def retieve_hotel_names(location,hotel_names):
+    llm = ChatGroq(groq_api_key=os.getenv("GROG_API_KEY"), model_name="llama-3.3-70b-versatile")
+    prompt = f"""
+        You are given raw hotel names from {location}.
+
+        TASK:
+        - Remove any extra descriptors or suffixes
+        - Keep ONLY the clean hotel name
+
+        OUTPUT FORMAT (MANDATORY):
+        Return ONLY a numbered list.
+        Each line must be: <number>. <hotel name>
+        No explanations.
+        No arrows.
+        No extra text.
+        No headings.
+
+        INPUT:
+        {hotel_names}
+    """
+    return llm.invoke(prompt).content.strip()

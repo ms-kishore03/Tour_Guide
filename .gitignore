@@ -45,7 +45,7 @@ htmlcov/
 .pytest_cache/
 
 # Optional: ignore local/test scripts
-news_tester.py
+TODO.txt
 =======
 venv
 >>>>>>> Stashed changes
