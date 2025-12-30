@@ -3,7 +3,12 @@ import bcrypt
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 
-client = MongoClient('mongodb+srv://tester_username:tester_password@ai-tour-guide.mzeft5j.mongodb.net/')
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+client = MongoClient(os.getenv("MONGODB_URI"))
 
 def insert_place(Trip_Theme, Specific_Activity, Climate, budget, duration, Location, TripType, Transport, Places,Definitions):
 
@@ -161,3 +166,62 @@ def airport_codes(name):
     if airport:
         return airport.get("code")
     return None
+
+
+def ensure_user(username):
+    db = client['Tour_Guide']
+    col = db['User_Plans']
+    col.update_one(
+        {"username": username},
+        {"$setOnInsert": {"plans": []}},
+        upsert=True
+    )
+
+
+def add_task_existing_place(username, place, task):
+
+    db = client['Tour_Guide']
+    collection = db['User_Plans']
+
+    result = collection.update_one(
+        {"username": username, "plans.place": place},
+        {"$push": {"plans.$.tasks": {"task": task}}}
+    )
+    return result.matched_count > 0
+
+def add_task_new_place(username, place, task):
+
+    db = client['Tour_Guide']
+    collection = db['User_Plans']
+    collection.update_one(
+        {"username": username},
+        {
+            "$push": {
+                "plans": {
+                    "place": place,
+                    "tasks": [{"task": task}]
+                }
+            }
+        },
+        upsert=True
+    )
+
+def add_todo(username, place, task):
+    ensure_user(username)
+    exists = add_task_existing_place(username, place, task)
+    if not exists:
+        add_task_new_place(username, place, task)
+
+
+def get_todo(username, place):
+    db = client['Tour_Guide']
+    collection = db['User_Plans']
+    user = collection.find_one({"username": username}, {"_id": 0})
+    if not user:
+        return []
+
+    for plan in user.get("plans", []):
+        if plan.get("place") == place:
+            return [t.get("task") for t in plan.get("tasks", [])]
+
+    return []
