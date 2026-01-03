@@ -24,7 +24,7 @@ if not trip:
     st.stop()
 
 place = trip.get("Place Name", "Unknown Destination")
-
+attractive_points = agents.get_attractive_points(place)
 # ---- PLACE-SCOPED CHAT MEMORY ----
 if "chat_histories" not in st.session_state:
     st.session_state["chat_histories"] = {}
@@ -72,7 +72,7 @@ with left_col:
 
     # --- Things to Do Section ---
     with st.expander("🧳 Things to Do", expanded=True):
-        st.write("Discover fun activities, attractions, and local experiences around your destination.")
+        st.write(f"Discover fun activities, attractions, and local experiences around {place}.")
         st.write("Here are a few suggestions:")
 
         # Check if the interesting places are already in the database
