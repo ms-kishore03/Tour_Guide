@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 import re
 import json
+import API_Handlers.geoapify as geoapify
 load_dotenv()
 
 def enquiry_agent_chatbot(conversation_history,user_input,weather_info,place,attractive_points):
@@ -45,63 +46,43 @@ def enquiry_agent_chatbot(conversation_history,user_input,weather_info,place,att
         text_output = "Could not generate a response at this time."
         return text_output
 
-def get_attractive_points(destination):
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    
+def select_top_attractions(destination, geoapify_data):
+    client = ChatGroq(groq_api_key=os.getenv("GROG_API_KEY"), model_name="llama-3.3-70b-versatile")
     prompt = f"""
-    You are a travel guide agent. You are given a destination: {destination}. 
-    Your task is to provide a list of top 10 attractive points of interest for tourists visiting this destination.
-    Return only the names of places as a simple numbered list, one per line.
+        You are a travel planning agent.
+
+        Destination: {destination}
+
+        You are given a list of candidate places extracted from a map API.
+        Some entries may be:
+        - duplicates
+        - misleading names
+        - roads, viewpoints without tourist value
+        - overly similar places (same attraction, different naming)
+
+        Your tasks:
+        1. Deduplicate places referring to the same real-world attraction.
+        2. Remove places that are not genuine tourist attractions.
+        3. Select the BEST and MOST RELEVANT places.
+        4. If fewer than 10 high-quality unique attractions remain,
+        intelligently add well-known attractions of this destination
+        using your general knowledge.
+        5. Ensure the final output has EXACTLY 10 UNIQUE attractions.
+
+        Candidate places (JSON):
+        {geoapify_data}
+
+        Output format:
+        A list of 10 attraction names only.
+        No explanations. No numbers. No extra text.
+        Just a list of names.
     """
 
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
+    return client.invoke(prompt).content.strip().split("\n")
 
-            text_output = response.candidates[0].content.parts[0].text.strip()
-            lines = [
-                line.strip().lstrip("0123456789.-) ").strip()
-                for line in text_output.split("\n")
-                if line.strip()
-            ]
-            return lines
-
-        except errors.ServerError as e:
-            if e.code == 503:  # Model overloaded
-                wait_time = (2 ** attempt) + 1
-                print(f"⚠️ Gemini model overloaded. Retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
-                time.sleep(wait_time)
-                continue
-            else:
-                raise  # Other server error, re-raise
-
-        except Exception as e:
-            print(f"⚠️ Error in get_attractive_points: {e}")
-            break
-
-    # Fallback to a smaller, more stable model
-    try:
-        print("⚙️ Falling back to gemini-1.0-pro...")
-        response = client.models.generate_content(
-            model="gemini-1.0-pro",
-            contents=prompt
-        )
-        text_output = response.candidates[0].content.parts[0].text.strip()
-        lines = [
-            line.strip().lstrip("0123456789.-) ").strip()
-            for line in text_output.split("\n")
-            if line.strip()
-        ]
-        return lines
-
-    except Exception as e:
-        print(f"❌ Final fallback failed: {e}")
-        return ["Could not generate attractive points at this time."]
-
+def get_attractive_points(destination):
+    geo_data = geoapify.geoapify_attractions(destination)
+    return select_top_attractions(destination,geo_data)
 
 def chatbot(conversation_history,user_input,weather_info,place,attractive_points):
     llm = ChatGroq(groq_api_key=os.getenv("GROG_API_KEY"), model_name="llama-3.3-70b-versatile")
