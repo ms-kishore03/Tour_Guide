@@ -79,16 +79,28 @@ with left_col:
 
         if result["status"] == "error":
             raw_geo_data = geoapify.geoapify_attractions(place)
-
+            print("Raw Geoapify data:", raw_geo_data)  #DEBUG LINE
             attractions = get_top_attractions_for_ui(
                 place=place,
                 geoapify_data=raw_geo_data,
                 llm=settings.llm
             )
+            print("Attractions fetched:", attractions)  #DEBUG LINE
 
             if not attractions:
-                st.warning("Could not load attractions.")
-                st.stop()
+                st.info("Fetching popular attractions using general knowledge.")
+                attractions = cognix_ai(
+                    user_input=f"List 10 popular tourist attractions in {place}",
+                    username=st.session_state.get("user", "guest"),
+                    place=place
+                )
+
+                if isinstance(attractions, str):
+                    attractions = [
+                        line.strip("- ").strip()
+                        for line in attractions.split("\n")
+                        if line.strip()
+                    ][:10]
 
             # cache clean list
             databaseManager.set_things_to_do(place, attractions)
@@ -180,6 +192,7 @@ with col2:
         try:
             res = databaseManager.trip_plan(trip)
             if res:
+                st.session_state["current_trip"]["Place Name"] = place
                 st.switch_page("pages/Trip_Itinerary.py")
         except Exception as e:
             st.error(f"Error starting trip: {e}")

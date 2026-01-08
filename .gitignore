@@ -51,3 +51,10 @@ venv
 >>>>>>> Stashed changes
 
 developers_authentication.txt
+
+# RAG generated data
+cognix_ai/data/
+
+# Vector DB / embeddings (generated)
+vectorstore/
+cognix_ai/vectorstore/

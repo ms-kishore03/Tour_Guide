@@ -12,11 +12,13 @@ from cognix_ai.cognix_ai import cognix_ai
 
 st.set_page_config(page_title="Plan Your Trip", page_icon="🗺️", layout="wide")
 
-st.title("🚀 Trip Planning Dashboard")
+
 
 user = st.session_state.get("user")
 trip = st.session_state.get("current_trip")
 place = trip.get("Place Name", "") if trip else ""
+
+st.title(f"🚀 Trip Planning Dashboard - {place}")
 
 if "attractive_cache" not in st.session_state:
     st.session_state["attractive_cache"] = {}
