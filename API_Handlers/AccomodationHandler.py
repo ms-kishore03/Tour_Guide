@@ -1,9 +1,11 @@
 import requests
 import json
-import agents
+import Utilities.agents as agents
 import re
-import os
+import os,sys
 from dotenv import load_dotenv
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import Utilities.agents as agents
 
 # ✅ Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))

@@ -7,3 +7,10 @@ pandas
 streamlit-folium
 folium
 geopy
+sentence-transformers
+tqdm
+langchain>=0.2.9
+langchain-community>=0.2.9
+langchain-groq>=0.1.5
+langchain-chroma>=0.1.4
+chromadb>=0.4.24

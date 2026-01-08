@@ -1,8 +1,9 @@
-from google import genai
 import os
 from dotenv import load_dotenv
 import Utilities.databaseManager as databaseManager
-
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import settings
 load_dotenv()
 db = databaseManager.client['Tour_Guide']
 places_collection = db['Places_Database']
@@ -28,7 +29,7 @@ def suggest_places(Trip_Theme, Specific_Activity, Climate, budget, duration, Loc
 
     # Else, call Gemini API
     print("Fetching from Gemini API...")
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    client = settings.gemini_llm
 
     # ---------- Fetch from Gemini for Places ----------
     validation = client.models.generate_content(
@@ -74,7 +75,7 @@ def suggest_places(Trip_Theme, Specific_Activity, Climate, budget, duration, Loc
 
 # ---------- FUNCTION 2: Place Definition ----------
 def place_definition(places):
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    client = settings.gemini_llm
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=f"""

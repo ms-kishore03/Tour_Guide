@@ -2,7 +2,7 @@ import requests
 from dotenv import load_dotenv
 import os,sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import agents
+import Utilities.agents as agents
 load_dotenv(".env")
 API_Key = os.getenv("OpenWeatherMap_API_Key")
 
@@ -40,10 +40,10 @@ def forecast_weather_info(lat,lon,city):
         for f in res["list"]
     ]
 
-def Weather_Explainer(lat,long,city):
+def weather_report(lat,long,city):
     current_data = current_weather_info(lat,long,city)
     forecast_data = forecast_weather_info(lat,long,city)
     #print(current_data)
     #print(forecast_data)
-    explanation = agents.Weather_Explainer_Agent(city,current_data,forecast_data)
+    explanation = [current_data,forecast_data]
     return explanation

@@ -2,11 +2,12 @@ import streamlit as st
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 import sys, os
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from Utilities import databaseManager
 from API_Handlers import WeatherHandler
-import agents
+from API_Handlers import geoapify
+from cognix_ai.cognix_ai import cognix_ai, get_top_attractions_for_ui
+from config import settings
 
 st.set_page_config(page_title="Trip Overview", page_icon="🧭", layout="wide")
 
@@ -24,7 +25,7 @@ if not trip:
     st.stop()
 
 place = trip.get("Place Name", "Unknown Destination")
-attractive_points = agents.get_attractive_points(place)
+attractive_points = geoapify.geoapify_attractions(place)
 # ---- PLACE-SCOPED CHAT MEMORY ----
 if "chat_histories" not in st.session_state:
     st.session_state["chat_histories"] = {}
@@ -72,35 +73,57 @@ with left_col:
 
     # --- Things to Do Section ---
     with st.expander("🧳 Things to Do", expanded=True):
-        st.write(f"Discover fun activities, attractions, and local experiences around {place}.")
-        st.write("Here are a few suggestions:")
-
-        # Check if the interesting places are already in the database
+        st.write(f"Discover popular attractions around {place}.")
 
         result = databaseManager.get_things_to_do(place)
 
         if result["status"] == "error":
-            attractive_points = agents.get_attractive_points(place)
-            for idx, p in enumerate(attractive_points, start=1):
-                st.markdown(f"{idx}. {p}")
-            databaseManager.set_things_to_do(place, attractive_points)
+            raw_geo_data = geoapify.geoapify_attractions(place)
+
+            attractions = get_top_attractions_for_ui(
+                place=place,
+                geoapify_data=raw_geo_data,
+                llm=settings.llm
+            )
+
+            if not attractions:
+                st.warning("Could not load attractions.")
+                st.stop()
+
+            # cache clean list
+            databaseManager.set_things_to_do(place, attractions)
+
         else:
-            for idx, item in enumerate(result["data"], start=1):
-                st.markdown(f"{idx}. {item}")
+            attractions = result["data"]
+
+        # show EXACTLY 10 clean items
+        for idx, name in enumerate(attractions[:10], start=1):
+            st.markdown(f"**{idx}. {name}**")
+
+        # 🔑 store for chatbot reuse
+        st.session_state["attractions"] = attractions
+
 
     # --- Weather Information Section ---
     with st.expander("🌦️ Weather Information", expanded=True):
         #print("Fetching weather data for:", place)
-        weather_details = WeatherHandler.Weather_Explainer(lat, lon, place)
-        st.session_state.weather_info = weather_details
+        weather_details = WeatherHandler.weather_report(lat, lon, place)
+        response = cognix_ai(
+            user_input="Provide a detailed weather report based on the following data.",
+            place=place,
+            weather_data=weather_details,
+            username=st.session_state.get("user", "guest")
+        )
+        st.session_state["weather_info"] = response
         with st.spinner('Fetching weather data...'):
-            st.write(weather_details)
+            st.write(response)
 
 # ----------------- RIGHT COLUMN -----------------
 with right_col:
     st.subheader("💬 Trip Assistant Chatbot")
     st.markdown("Ask anything about your destination!")
-
+    geo_data = geoapify.geoapify_attractions(place)
+    st.session_state['geoapify_data'] = geo_data
     with st.form(key="chat_form", clear_on_submit=True):
         user_input = st.text_input("You:", placeholder="e.g. What’s the best time to visit?")
         send = st.form_submit_button("Send")
@@ -108,9 +131,19 @@ with right_col:
     if send and user_input:
         conversation_history = chat_history
         conversation_history.append({"role": "user", "content": user_input})
-        response = agents.chatbot(
-            conversation_history, user_input, st.session_state.get("weather_info", ""),place,attractive_points
+        #response = agents.chatbot(
+        #    conversation_history, user_input, st.session_state.get("weather_info", ""),place,attractive_points
+        #)
+
+        response = cognix_ai(
+            user_input=user_input,
+            username=st.session_state.get("user", "guest"),
+            conversation_history=conversation_history,
+            place=place,
+            weather_data = st.session_state.get("weather_info", ""),
+            geoapify_data=geo_data
         )
+
         conversation_history.append({"role": "assistant", "content": response})
 
     for message in reversed(chat_history):
@@ -154,4 +187,3 @@ with col2:
 with col3:
     if st.button("⬅️ Back to Home"):
         st.switch_page("pages/Home.py")
-

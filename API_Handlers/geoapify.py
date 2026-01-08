@@ -1,46 +1,74 @@
 import requests
-import os,sys
+import os
 from dotenv import load_dotenv
+
 load_dotenv(".env")
 
 api_key = os.getenv("GEOAPIFY_API_KEY")
 
+
 def geoapify_attractions(place):
-    url_1 = "https://api.geoapify.com/v1/geocode/search?text={}&format=json&apiKey={}".format(place, api_key)
+    """
+    Safely fetch nearby attractions for a place.
+    Returns an EMPTY LIST if geocoding or places lookup fails.
+    """
 
-    payload = {}
-    headers = {}
+    try:
+        # ----------------- STEP 1: GEOCODE -----------------
+        url_1 = (
+            "https://api.geoapify.com/v1/geocode/search"
+            f"?text={place}&format=json&apiKey={api_key}"
+        )
 
-    response = requests.request("GET", url_1, headers=headers, data=payload)
-    lat = response.json()['results'][0]['lat']
-    lon = response.json()['results'][0]['lon']
+        response = requests.get(url_1, timeout=10)
+        response.raise_for_status()
 
-    url_2 = "https://api.geoapify.com/v2/places?categories=tourism.attraction,tourism.sights,tourism&filter=circle:{},{},5000&bias=proximity:{},{}&limit=30&apiKey={}".format(lon, lat, lon, lat, api_key)
+        results = response.json().get("results", [])
 
-    payload = {}
-    headers = {}
+        # 🚨 SAFETY CHECK
+        if not results:
+            return []
 
-    response = requests.request("GET", url_2, headers=headers, data=payload)
+        lat = results[0].get("lat")
+        lon = results[0].get("lon")
 
-    attractions_list = []
+        if lat is None or lon is None:
+            return []
 
-    idx = 0
-    for feature in response.json().get("features", []):
-        props = feature.get("properties", {})
+        # ----------------- STEP 2: FETCH ATTRACTIONS -----------------
+        url_2 = (
+            "https://api.geoapify.com/v2/places"
+            "?categories=tourism.attraction,tourism.sights,tourism"
+            f"&filter=circle:{lon},{lat},5000"
+            f"&bias=proximity:{lon},{lat}"
+            f"&limit=30&apiKey={api_key}"
+        )
 
-        name = props.get("name")
-        address = props.get("formatted")
+        response = requests.get(url_2, timeout=10)
+        response.raise_for_status()
 
-        if not name or not address:
-            continue
+        attractions_list = []
 
-        attraction = {
-            "name": name,
-            "city": props.get("city"),
-            "postcode": props.get("postcode"),
-            "address": address
-        }
+        for feature in response.json().get("features", []):
+            props = feature.get("properties", {})
 
-        attractions_list.append(attraction)
-        idx += 1
-    return attractions_list
+            name = props.get("name")
+            address = props.get("formatted")
+
+            if not name:
+                continue
+
+            attraction = {
+                "name": name,
+                "city": props.get("city"),
+                "postcode": props.get("postcode"),
+                "address": address,
+            }
+
+            attractions_list.append(attraction)
+
+        return attractions_list
+
+    except Exception:
+        # 🚨 NEVER crash the app
+        return []

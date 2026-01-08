@@ -3,7 +3,6 @@ import time
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from Utilities import explore
-from Utilities import databaseManager
 
 st.set_page_config(page_title="Explore", page_icon="🌍", layout="centered")
 

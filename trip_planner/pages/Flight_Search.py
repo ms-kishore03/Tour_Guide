@@ -2,15 +2,11 @@ import streamlit as st
 from datetime import date, timedelta
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-import agents
-from API_Handlers import FlightHandler
+import Utilities.agents as agents
 from API_Handlers import FlightHandler_V2
 
 # --- Page Config ---
 st.set_page_config(page_title="Flight Finder", page_icon="✈️", layout="centered")
-
-# --- Default querystring ---
-
 
 # --- Title ---
 st.title("✈️ Plan Your Flight Trip")

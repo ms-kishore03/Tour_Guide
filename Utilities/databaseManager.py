@@ -1,14 +1,8 @@
-from pymongo import MongoClient
-import bcrypt
 import streamlit as st
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+from config import settings
 
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-client = MongoClient(os.getenv("MONGODB_URI"))
+client = settings.mongo_db_client
 
 def insert_place(Trip_Theme, Specific_Activity, Climate, budget, duration, Location, TripType, Transport, Places,Definitions):
 
@@ -157,27 +151,10 @@ def trip_plan(trip_details):
 
     collection.insert_one(trip_entry)
     return True
-    
 
-def airport_codes(name):
-    db = client["Tour_Guide"]
-    collection = db["Airports"]
-    airport = collection.find_one({"name": {"$regex": name, "$options": "i"}})
-    if airport:
-        return airport.get("code")
-    return None
-
-
-def ensure_user(username):
-    db = client['Tour_Guide']
-    col = db['User_Plans']
-    col.update_one(
-        {"username": username},
-        {"$setOnInsert": {"plans": []}},
-        upsert=True
-    )
-
-
+#---------------------------------------#
+# This function is used to add a task to an existing document with matching username and place
+#---------------------------------------#
 def add_task_existing_place(username, place, task):
 
     db = client['Tour_Guide']
@@ -189,6 +166,9 @@ def add_task_existing_place(username, place, task):
     )
     return result.matched_count > 0
 
+#---------------------------------------#
+# This function is used to add a task to a new document with corresponding username and place
+#---------------------------------------#
 def add_task_new_place(username, place, task):
 
     db = client['Tour_Guide']
@@ -199,29 +179,47 @@ def add_task_new_place(username, place, task):
             "$push": {
                 "plans": {
                     "place": place,
-                    "tasks": [{"task": task}]
+                    "tasks": [{"task": task}] # datatype --> array of objects
                 }
             }
         },
+        upsert=True # if the document doesn't exist, it will be created
+    )
+
+def ensure_user(username):
+    db = client['Tour_Guide']
+    col = db['User_Plans']
+    col.update_one(
+        {"username": username},
+        {"$setOnInsert": {"plans": []}},
         upsert=True
     )
 
 def add_todo(username, place, task):
     ensure_user(username)
-    exists = add_task_existing_place(username, place, task)
+    exists = add_task_existing_place(username, place, task) # if the document exists, it will be updated
     if not exists:
-        add_task_new_place(username, place, task)
+        add_task_new_place(username, place, task) # if the document doesn't exist, it will be created
 
 
 def get_todo(username, place):
     db = client['Tour_Guide']
     collection = db['User_Plans']
-    user = collection.find_one({"username": username}, {"_id": 0})
+    user = collection.find_one({"username": username}, {"_id": 0})  # get the user document
     if not user:
         return []
 
-    for plan in user.get("plans", []):
+    for plan in user.get("plans", []): # get the correct plan from the user document
         if plan.get("place") == place:
             return [t.get("task") for t in plan.get("tasks", [])]
 
     return []
+
+def get_itinerary_from_db(collection, username, place):
+    doc = collection.find_one(
+        {"username": username, "place": place},
+        {"_id": 0, "itinerary_list": 1}
+    )
+    if not doc:
+        return []
+    return doc.get("itinerary_list", [])

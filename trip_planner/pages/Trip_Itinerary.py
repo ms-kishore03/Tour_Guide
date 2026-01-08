@@ -1,8 +1,14 @@
 import streamlit as st
-import agents
+import Utilities.agents as agents
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from Utilities import databaseManager
+from API_Handlers import geoapify
+from cognix_ai.cognix_ai import cognix_ai
+
+
+
+
 
 st.set_page_config(page_title="Plan Your Trip", page_icon="🗺️", layout="wide")
 
@@ -16,11 +22,13 @@ if "attractive_cache" not in st.session_state:
     st.session_state["attractive_cache"] = {}
 
 if place and place not in st.session_state["attractive_cache"]:
-    st.session_state["attractive_cache"][place] = agents.get_attractive_points(place)
+    st.session_state["attractive_cache"][place] = geoapify.geoapify_attractions(place)
 
 attractive_points = st.session_state["attractive_cache"].get(place, [])
 # ----------------- TOP BUTTON ROW -----------------
 col1, col2, col3 = st.columns(3)
+
+#--------------------flight booking section---------------------
 
 with col1:
     st.subheader("✈️ Need help with travel plans?")
@@ -28,12 +36,14 @@ with col1:
     if st.button("Plan Travel", key="travel_help"):
         st.switch_page("pages/Flight_Search.py")
 
+#--------------------accommodation section---------------------
 with col2:
     st.subheader("🏨 Need help with accommodations?")
     st.write("Find suitable stays or hotel recommendations.")
     if st.button("Find Stays", key="stay_help"):
         st.switch_page("pages/Accomodations.py")
 
+#--------------------todo list section---------------------
 with col3:
 
     st.subheader("📝 View To-Do List")
@@ -47,7 +57,7 @@ with col3:
 
     # init session cache
     if "todo_list" not in st.session_state:
-        st.session_state["todo_list"] = {}
+        st.session_state["todo_list"] = {}  # a dictionary to store the todo list for each place
 
     # load from DB only once per place
     if todo_key not in st.session_state["todo_list"]:
@@ -55,7 +65,7 @@ with col3:
             user, todo_key
         )
 
-    list_to_do = st.session_state["todo_list"][todo_key]
+    list_to_do = st.session_state["todo_list"][todo_key] # datatype: list
 
     # input
     new_task = st.text_input(
@@ -106,51 +116,52 @@ with chat_col:
     if send and user_input:
         chat_history.append({"role": "user", "content": user_input})
 
-        response = agents.enquiry_agent_chatbot(
-            chat_history,
-            user_input,
-            st.session_state.get("weather_info", ""),
-            place,
-            attractive_points,
+        response = cognix_ai(
+            user_input=user_input,
+            username=st.session_state.get("user", "guest"),
+            conversation_history=chat_history,
+            place=place,
+            weather_data = st.session_state.get("weather_info", ""),
+            geoapify_data=st.session_state.get('geoapify_data', [])
         )
 
         chat_history.append({"role": "assistant", "content": response})
 
     # ---- DISPLAY CHAT ----
-    for message in chat_history:
+    for message in reversed(chat_history):
         st.chat_message(message["role"]).markdown(message["content"])
 
 # --- Itinerary Section ---
+
+# --- Itinerary Section (DB-backed, read-only) ---
 with itinerary_col:
-    st.subheader("🗓️ Itinerary List")
-    st.write("View or edit your travel plan here.")
+    st.subheader("🗓️ Your Itinerary")
 
-    if "itineraries" not in st.session_state:
-        st.session_state["itineraries"] = {}
+    from cognix_ai.cognix_ai import collection  # reuse same collection
 
-    itinerary_key = place if place else "__global_planning__"
+    username = st.session_state.get("user", "guest")
 
-    if itinerary_key not in st.session_state["itineraries"]:
-        st.session_state["itineraries"][itinerary_key] = []
-
-    itinerary_list = st.session_state["itineraries"][itinerary_key]
-
-    # ---- DISPLAY ITINERARY ----
-    for idx, item in enumerate(itinerary_list, start=1):
-        st.markdown(f"**{idx}.** {item}")
-
-    st.markdown("---")
-
-    new_item = st.text_input(
-        "Add to itinerary:",
-        key=f"new_itinerary_item_{itinerary_key}",
-        placeholder="e.g., Visit Eiffel Tower",
+    itinerary_items = databaseManager.get_itinerary_from_db(
+        collection=collection,
+        username=username,
+        place=place
     )
 
-    if st.button("Add Itinerary Item", key=f"add_itinerary_{itinerary_key}"):
-        if new_item.strip():
-            itinerary_list.append(new_item.strip())
-            st.success("Itinerary item added!")
+    if not itinerary_items:
+        st.info("No itinerary finalized yet. Start planning in the chat 👉")
+    else:
+        for idx, item in enumerate(itinerary_items, start=1):
+            location = item.get("location", "Unknown place")
+            date = item.get("date", "unknown")
+            time = item.get("time", "unknown")
+
+            st.markdown(
+                f"""
+                **{idx}. {location}**  
+                🗓️ {date} &nbsp;&nbsp; ⏰ {time}
+                """
+            )
+
 
 
 left, center, right = st.columns([1, 1, 1])

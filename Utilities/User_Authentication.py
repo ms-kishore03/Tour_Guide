@@ -1,8 +1,14 @@
 from pymongo import MongoClient
 import bcrypt
 import re
+from dotenv import load_dotenv
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"..")))
+from config import settings
+load_dotenv()
 
-client = MongoClient('mongodb+srv://tester_username:tester_password@ai-tour-guide.mzeft5j.mongodb.net/')
+client = settings.mongo_db_client
 
 # Access the database
 db = client['Tour_Guide']
