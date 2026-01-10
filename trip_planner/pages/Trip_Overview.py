@@ -65,8 +65,8 @@ with left_col:
             lat, lon = location.latitude, location.longitude
             #print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
         else:
-            lat, lon = 0, 0
-            st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
+            lat, lon, _ = geoapify.geoapify_attractions(place)
+            #st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
     except (GeocoderTimedOut, GeocoderUnavailable) as e:
         lat, lon = 0, 0
         st.warning(f"Geocoding error for {place}: {e}. Defaulting to (0, 0).")
@@ -78,14 +78,14 @@ with left_col:
         result = databaseManager.get_things_to_do(place)
 
         if result["status"] == "error":
-            raw_geo_data = geoapify.geoapify_attractions(place)
-            print("Raw Geoapify data:", raw_geo_data)  #DEBUG LINE
+            _,_,raw_geo_data = geoapify.geoapify_attractions(place)
+            #print("Raw Geoapify data:", raw_geo_data)  #DEBUG LINE
             attractions = get_top_attractions_for_ui(
                 place=place,
                 geoapify_data=raw_geo_data,
                 llm=settings.llm
             )
-            print("Attractions fetched:", attractions)  #DEBUG LINE
+            #print("Attractions fetched:", attractions)  #DEBUG LINE
 
             if not attractions:
                 st.info("Fetching popular attractions using general knowledge.")

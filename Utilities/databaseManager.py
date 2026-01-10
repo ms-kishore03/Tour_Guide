@@ -1,13 +1,15 @@
 import streamlit as st
 from datetime import datetime, timedelta
 from config import settings
+from config.settings import mongo_db_client as client
 
 client = settings.mongo_db_client
+db = client['Tour_Guide']
 
 def insert_place(Trip_Theme, Specific_Activity, Climate, budget, duration, Location, TripType, Transport, Places,Definitions):
 
     # Access the database
-    db = client['Tour_Guide']
+    
 
     collection = db['Places_Database']
 
@@ -30,7 +32,6 @@ def set_things_to_do(destination, interests):
     if not destination or not interests:
         return {"status": "error", "message": "Destination or interests missing"}
     
-    db = client['Tour_Guide']
     collection = db["Things_To_Do"]
 
     match = collection.find_one({
@@ -53,7 +54,6 @@ def get_things_to_do(destination):
     if not destination:
         return {"status": "error", "data": None}
 
-    db = client['Tour_Guide']
     collection = db["Things_To_Do"]
 
     entry = collection.find_one({"destination": destination})
@@ -76,7 +76,6 @@ def save_a_trip(trip_details):
     if not trip_details:
         return {"status": "error", "message": "No trip data"}
 
-    db = client["Tour_Guide"]
     collection = db["Saved_Trips"]
 
     match = collection.find_one({
@@ -97,7 +96,7 @@ def save_a_trip(trip_details):
 
 def get_saved_trips():
     username = st.session_state.user
-    db = client['Tour_Guide']
+
     collection = db['Saved_Trips']
 
     saved_trips = list(collection.find({"username": username}))
@@ -108,7 +107,7 @@ def get_saved_trips():
 
 def delete_saved_trip(trip):
     username = st.session_state.user
-    db = client['Tour_Guide']
+
     collection = db['Saved_Trips']
 
     if not username:
@@ -134,7 +133,6 @@ def trip_plan(trip_details):
     elif not trip_details:
         return "No trip data."
 
-    db = client['Tour_Guide']
     collection = db['Planning_Trips']    
     
     match = collection.find_one({
@@ -157,7 +155,6 @@ def trip_plan(trip_details):
 #---------------------------------------#
 def add_task_existing_place(username, place, task):
 
-    db = client['Tour_Guide']
     collection = db['User_Plans']
 
     result = collection.update_one(
@@ -171,7 +168,6 @@ def add_task_existing_place(username, place, task):
 #---------------------------------------#
 def add_task_new_place(username, place, task):
 
-    db = client['Tour_Guide']
     collection = db['User_Plans']
     collection.update_one(
         {"username": username},
@@ -187,7 +183,6 @@ def add_task_new_place(username, place, task):
     )
 
 def ensure_user(username):
-    db = client['Tour_Guide']
     col = db['User_Plans']
     col.update_one(
         {"username": username},
@@ -203,7 +198,6 @@ def add_todo(username, place, task):
 
 
 def get_todo(username, place):
-    db = client['Tour_Guide']
     collection = db['User_Plans']
     user = collection.find_one({"username": username}, {"_id": 0})  # get the user document
     if not user:
@@ -223,3 +217,90 @@ def get_itinerary_from_db(collection, username, place):
     if not doc:
         return []
     return doc.get("itinerary_list", [])
+
+def save_ongoing_trips(username, place):
+
+    # get trip details
+    trip_details_collection=db["Saved_Trips"]
+    docs = trip_details_collection.find_one(
+        {"username": username, "trip_data.Place Name": place},
+        {"_id": 0, "trip_data": 1}
+    )
+    trip_details = {
+        
+            "Place Name": docs["trip_data"]["Place Name"],
+            "Scenario": docs["trip_data"]["Scenario"],
+            "Duration": docs["trip_data"]["Duration"],
+            "Climate": docs["trip_data"]["Climate"],
+            "People": docs["trip_data"]["People"],
+            "Transport": docs["trip_data"]["Transport"],
+            "Description": docs["trip_data"]["Description"]
+        
+    }if docs else {}
+
+    # Save ongoing trip
+    
+    save_trip_data = {
+        "username": username,
+        "place": place,
+        "trip_details": trip_details if trip_details else []
+    }
+
+    ongoing_trips_collection = db["Ongoing_Trips"]
+    try:
+        ongoing_trips_collection.update_one(
+            {"username": username, "place": place},
+            {"$set": save_trip_data},
+            upsert=True
+        )
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "error", "message": "Failed to save ongoing trip."}
+
+
+def get_ongoing_trip(username):
+
+    collection = db["Ongoing_Trips"]
+
+    doc = collection.find_one(
+        {"username": username},
+        {"_id": 0}
+    )
+    return doc
+
+def save_expenses(username, place, expenses):
+    collection = db["Ongoing_Trips"]
+
+    try:
+        result = collection.update_one(
+            {"username": username, "place": place},
+            {
+                "$set": {
+                    "username": username,
+                    "place": place,
+                    "expenses": expenses
+                }
+            },
+            upsert=True
+        )
+
+        return {"status": "ok"}
+
+    except Exception as e:
+        print("ERROR:", e)
+        return {"status": "error", "message": str(e)}
+
+    
+def get_expenses(username, place):
+    collection = db["Ongoing_Trips"]
+
+    doc = collection.find_one(
+        {"username": username, "place": place},
+        {"_id": 0, "expenses": 1}
+    )
+
+    return doc.get("expenses", []) if doc else []
+
+def end_ongoing_trip(username ,place):
+    collection = db["Ongoing_Trips"]
+    collection.delete_one({"username": username, "place": place})

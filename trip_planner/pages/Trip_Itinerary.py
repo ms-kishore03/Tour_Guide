@@ -5,8 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from Utilities import databaseManager
 from API_Handlers import geoapify
 from cognix_ai.cognix_ai import cognix_ai
-
-
+from cognix_ai.cognix_ai import collection
 
 
 
@@ -139,7 +138,7 @@ with chat_col:
 with itinerary_col:
     st.subheader("🗓️ Your Itinerary")
 
-    from cognix_ai.cognix_ai import collection  # reuse same collection
+
 
     username = st.session_state.get("user", "guest")
 
@@ -164,9 +163,15 @@ with itinerary_col:
                 """
             )
 
-
-
 left, center, right = st.columns([1, 1, 1])
 
 with center:
-    st.button("Start Trip")
+    if st.button("Start Trip"):
+        res = databaseManager.get_ongoing_trip(user)
+        if res:
+            st.warning("You already have an ongoing trip. Please complete or cancel it before starting a new one.")
+            st.stop()
+        else:
+            databaseManager.save_ongoing_trips(username=user, place=place)
+            st.success("Trip started! Navigate to the 'Ongoing Trips' page to manage your trip.")
+            st.switch_page("pages/Ongoing_Trips.py")

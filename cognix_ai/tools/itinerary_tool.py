@@ -1,49 +1,39 @@
-# cognix_ai/tools/itinerary_tool.py
-
 def Itinerary_Agent(query: str, context: dict):
     """
-    Handles FINALIZATION of itinerary only.
-    Assumes draft is already correct.
+    Stores multi-day itinerary grouped by date.
     """
 
     collection = context.get("collection")
     username = context.get("username")
     place = context.get("place")
-    draft = context.get("draft_itinerary")
+    itinerary = context.get("draft_itinerary")
 
-    # ---------- SAFE CHECKS ----------
-    if collection is None:
-        return "Database connection unavailable."
+    if collection is None or not username or not place:
+        return "Database unavailable."
 
-    if not username or not place:
-        return "User or destination missing."
-
-    if not isinstance(draft, list) or not draft:
+    if not itinerary:
         return "No itinerary to save."
 
-    # ---------- NORMALIZE DATA ----------
-    itinerary_list = []
-    for item in draft:
-        itinerary_list.append({
-            "location": item.get("location"),
-            "date": item.get("date", "unknown"),
-            "time": item.get("time", "unknown")
+    # Group by date
+    grouped = {}
+    for item in itinerary:
+        date = item["date"]
+        grouped.setdefault(date, []).append({
+            "location": item["location"],
+            "time": item["time"]
         })
 
-    # ---------- UPSERT ----------
+    doc = {
+        "username": username,
+        "place": place,
+        "itinerary_by_date": grouped
+    }
+
     collection.update_one(
-        {
-            "username": username,
-            "place": place
-        },
-        {
-            "$set": {
-                "username": username,
-                "place": place,
-                "itinerary_list": itinerary_list
-            }
-        },
+        {"username": username, "place": place},
+        {"$set": doc},
         upsert=True
     )
 
-    return "Your itinerary has been finalized and saved successfully."
+
+    return "Your multi-day itinerary has been saved successfully."

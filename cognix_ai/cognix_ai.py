@@ -1,3 +1,5 @@
+# cognix_ai.py
+
 from cognix_ai.brain.cognix import CognixAI
 from cognix_ai.tools.itinerary_tool import Itinerary_Agent
 from cognix_ai.tools.attractions_tool import select_top_attractions
@@ -15,21 +17,20 @@ db = client["Tour_Guide"]
 collection = db["itinerary"]
 
 # ---------------- PLACE-SCOPED SESSION MEMORY ----------------
-# STRUCTURE:
 # SESSION_STATE[user][place] = { memory: [], draft_itinerary: [] }
 SESSION_STATE = {}
 
 
-def _load_itinerary_from_db(username: str, place: str):
+def _load_itinerary_from_db(username: str, place: str) -> list:
     """
-    Pull finalized itinerary from DB (if exists).
+    Load finalized itinerary from DB (authoritative).
     """
     doc = collection.find_one({
         "username": username,
         "place": place
     })
 
-    if doc and "itinerary_list" in doc:
+    if doc and isinstance(doc.get("itinerary_list"), list):
         return doc["itinerary_list"]
 
     return []
@@ -44,24 +45,24 @@ def cognix_ai(
     place: Optional[str] = None,
     hotel_names: Optional[list] = None,
     weather_data: Optional[list] = None,
-    conversation_history: Optional[list] = None,
+    conversation_history: Optional[list] = None,  # UI only
     geoapify_data: Optional[list] = None,
 ):
-    # -------- SAFETY --------
+    # ---------------- SAFETY ----------------
     if not place:
         place = "__global__"
 
-    # -------- SESSION INIT --------
+    # ---------------- SESSION INIT ----------------
     if username not in SESSION_STATE:
         SESSION_STATE[username] = {}
 
     if place not in SESSION_STATE[username]:
-        # 🔑 LOAD FROM DATABASE ON FIRST VISIT
         SESSION_STATE[username][place] = {
             "memory": [],
             "draft_itinerary": _load_itinerary_from_db(username, place)
         }
 
+    # ---------------- TOOLS ----------------
     tools = {
         "ITINERARY": Itinerary_Agent,
         "ATTRACTIONS": select_top_attractions,
@@ -75,6 +76,7 @@ def cognix_ai(
         memory=SESSION_STATE[username][place]["memory"]
     )
 
+    # ---------------- CONTEXT ----------------
     context = {
         "username": username,
         "place": place,
@@ -83,34 +85,38 @@ def cognix_ai(
         "llm": agent.llm
     }
 
-    if weather_data:
+    # Optional context enrichment
+    if weather_data is not None:
         context["weather_data"] = weather_data
-    if geoapify_data:
+
+    if geoapify_data is not None:
         context["geoapify_data"] = geoapify_data
+
     if conversation_history:
         context["conversation_history"] = conversation_history
 
-    # -------- RUN AGENT --------
+    # ---------------- RUN AGENT ----------------
     result = agent.run(user_input, context)
 
-    # -------- PERSIST MEMORY --------
+    # ---------------- MEMORY PERSIST ----------------
     SESSION_STATE[username][place]["memory"].append(user_input)
 
-    # -------- PERSIST DRAFT --------
+    # ---------------- DRAFT UPDATE ----------------
     if isinstance(result, dict) and "draft_itinerary" in result:
         SESSION_STATE[username][place]["draft_itinerary"] = result["draft_itinerary"]
 
-    # -------- AFTER FINALIZE → SYNC FROM DB --------
+    # ---------------- FINALIZE → SYNC DB FOR FUTURE ----------------
     if isinstance(result, dict) and result.get("status") == "finalized":
         SESSION_STATE[username][place]["draft_itinerary"] = _load_itinerary_from_db(
             username, place
         )
+        # DO NOT overwrite `result` — UI needs the grouped response
 
     return result
 
 
 # ============================================================
-# UI SAFE ATTRACTION HELPER (UNCHANGED BEHAVIOR)
+# UI-SAFE ATTRACTION HELPER
 # ============================================================
 def get_top_attractions_for_ui(
     *,
@@ -118,7 +124,9 @@ def get_top_attractions_for_ui(
     geoapify_data: list,
     llm
 ) -> List[str]:
-
+    """
+    UI helper — always returns list[str].
+    """
     attractions = select_top_attractions(
         query="top attractions",
         context={
@@ -128,4 +136,4 @@ def get_top_attractions_for_ui(
         }
     )
 
-    return attractions if isinstance(attractions, list) else []
+    return attractions[:10] if isinstance(attractions, list) else []

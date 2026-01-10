@@ -41,4 +41,4 @@ def geoapify_attractions(place):
         if name:
             attractions.append(name)
 
-    return attractions
+    return lat,lon,attractions

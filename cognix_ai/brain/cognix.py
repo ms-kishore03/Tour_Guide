@@ -3,16 +3,14 @@
 import json
 import os
 import sys
+from datetime import datetime
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from config import settings
 
 
 class CognixAI:
     def __init__(self, tools: dict, memory: list | None = None):
-        """
-        tools: dict[str, callable]
-        memory: conversational memory (non-authoritative)
-        """
         self.tools = tools
         self.memory = memory or []
         self.llm = settings.llm
@@ -34,41 +32,32 @@ class CognixAI:
     def _is_draft_edit_intent(self, text: str) -> bool:
         text = text.lower()
         return any(k in text for k in [
-            "visit",
-            "go to",
-            "then",
-            "instead",
-            "change",
-            "update",
-            "remove",
-            "add",
-            "start",
-            "set the date",
-            "set date",
+            "visit", "go to", "then", "instead",
+            "change", "update", "remove", "add",
+            "start", "set the date", "set date",
             "reschedule"
+        ])
+
+    def _is_weather_intent(self, text: str) -> bool:
+        text = text.lower()
+        return any(k in text for k in [
+            "weather", "temperature", "forecast",
+            "rain", "rainfall", "humidity",
+            "hot", "cold", "climate", "wind"
         ])
 
     def _should_use_rag(self, text: str) -> bool:
         text = text.lower()
         return any(k in text for k in [
-            "restaurant",
-            "food",
-            "eat",
-            "dining",
-            "cuisine",
-            "local food",
-            "cafes",
-            "bars"
+            "restaurant", "food", "eat",
+            "dining", "cuisine", "cafes", "bars"
         ])
 
     # ============================================================
-    # DRAFT ITINERARY UPDATE (LLM REASONING ONLY)
+    # DRAFT UPDATE (LLM — NOT AUTHORITATIVE)
     # ============================================================
 
     def _update_draft_itinerary(self, user_input: str, context: dict) -> list:
-        """
-        Takes existing draft (from DB) and applies user changes.
-        """
         prompt = f"""
 You are an itinerary editor.
 
@@ -78,7 +67,7 @@ Current itinerary:
 User request:
 "{user_input}"
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {{
   "draft_itinerary": [
     {{
@@ -90,21 +79,77 @@ Return ONLY valid JSON in this exact format:
 }}
 
 Rules:
-- Preserve all existing steps unless explicitly changed
+- Preserve existing steps unless explicitly changed
 - If user sets a date globally, apply it to ALL steps
 - If user changes time for a location, update ONLY that location
 - Date or time may be "unknown"
-- Do NOT invent new locations unless explicitly requested
+- Do NOT invent new locations
 """
 
         raw = self.llm.invoke(prompt).content.strip()
         raw = raw.replace("```json", "").replace("```", "").strip()
-
         parsed = json.loads(raw)
         return parsed.get("draft_itinerary", [])
 
     # ============================================================
-    # TOOL DECISION (NON-ITINERARY)
+    # 🔒 AUTHORITATIVE NORMALIZATION + SORTING
+    # ============================================================
+
+    def _normalize_and_sort_itinerary(self, itinerary: list) -> list:
+        today = datetime.today().strftime("%m/%d/%Y")
+
+        def safe_parse_date(d):
+            try:
+                return datetime.strptime(d, "%m/%d/%Y")
+            except Exception:
+                return datetime.strptime(today, "%m/%d/%Y")
+
+        def safe_parse_time(t):
+            if t == "unknown":
+                return (0, 0)
+            try:
+                dt = datetime.strptime(t.strip().upper(), "%I:%M %p")
+                return (1, dt.hour * 60 + dt.minute)
+            except Exception:
+                return (1, 9999)
+
+        # Normalize defaults
+        for item in itinerary:
+            if not item.get("date") or item["date"] == "unknown":
+                item["date"] = today
+            if not item.get("time"):
+                item["time"] = "unknown"
+
+        itinerary.sort(
+            key=lambda x: (
+                safe_parse_date(x["date"]),
+                safe_parse_time(x["time"])
+            )
+        )
+
+        return itinerary
+
+    # ============================================================
+    # DAY GROUPING (MULTI-DAY READY)
+    # ============================================================
+
+    def _group_itinerary_by_day(self, itinerary: list) -> dict:
+        day_map = {}
+        current_day = 1
+        last_date = None
+
+        for item in itinerary:
+            date = item["date"]
+            if date != last_date:
+                day_map[f"Day {current_day}"] = []
+                last_date = date
+                current_day += 1
+            day_map[f"Day {current_day - 1}"].append(item)
+
+        return day_map
+
+    # ============================================================
+    # TOOL SELECTION (NON-ITINERARY)
     # ============================================================
 
     def _decide_tools(self, user_input: str) -> list[str]:
@@ -116,7 +161,6 @@ User question:
 "{user_input}"
 
 Respond ONLY in this format:
-
 TOOLS:
 <comma separated tool names>
 
@@ -137,7 +181,7 @@ NONE
         ]
 
     # ============================================================
-    # FINAL RESPONSE SYNTHESIS (FIXES CHAT STAMMERING)
+    # CHAT RESPONSE
     # ============================================================
 
     def _synthesize_chat(self, user_input: str, context: dict, tool_results: dict) -> str:
@@ -146,20 +190,9 @@ You are Cognix AI, a confident travel assistant.
 
 Answer naturally and directly.
 
-You may use:
-- Tool results
-- Known context (place, itinerary, weather)
-- Your own general knowledge if data is missing
-
-DO NOT:
-- Ask for more context
-- Say "I don't know where you are"
-- Mention tools or internal logic
-
 User question:
 "{user_input}"
 
-Context:
 Place: {context.get("place")}
 Itinerary: {context.get("draft_itinerary")}
 Tool results: {tool_results}
@@ -167,58 +200,66 @@ Tool results: {tool_results}
         return self.llm.invoke(prompt).content
 
     # ============================================================
-    # MAIN ENTRY POINT
+    # MAIN ENTRY
     # ============================================================
 
     def run(self, user_input: str, context: dict):
-        """
-        Returns:
-        - dict (draft / finalize)
-        - str (chat)
-        """
 
-        # ---------------- FINALIZE (WITH OR WITHOUT EDIT) ----------------
+        # ---------------- WEATHER (HARD ROUTE) ----------------
+        if self._is_weather_intent(user_input):
+            if "WEATHER" not in self.tools:
+                return "Weather service is unavailable at the moment."
+            return self.tools["WEATHER"](user_input, context)
+
+        # ---------------- FINALIZE ----------------
         if self._is_finalize_intent(user_input):
 
-            # allow "set date and finalize" in ONE message
             if self._is_draft_edit_intent(user_input):
-                updated = self._update_draft_itinerary(user_input, context)
-                context["draft_itinerary"] = updated
+                proposed = self._update_draft_itinerary(user_input, context)
+                context["draft_itinerary"] = proposed
 
             if not context.get("draft_itinerary"):
                 return "You don’t have any plan yet to finalize."
 
+            context["draft_itinerary"] = self._normalize_and_sort_itinerary(
+                context["draft_itinerary"]
+            )
+
             result = self.tools["ITINERARY"](user_input, context)
+
+            grouped = self._group_itinerary_by_day(context["draft_itinerary"])
 
             return {
                 "status": "finalized",
                 "message": result,
-                "itinerary": context.get("draft_itinerary")
+                "itinerary": context["draft_itinerary"],
+                "day_summary": grouped
             }
 
         # ---------------- DRAFT EDIT ----------------
         if self._is_draft_edit_intent(user_input):
-            updated = self._update_draft_itinerary(user_input, context)
-            context["draft_itinerary"] = updated
+            proposed = self._update_draft_itinerary(user_input, context)
+            normalized = self._normalize_and_sort_itinerary(proposed)
+            context["draft_itinerary"] = normalized
             self.memory.append(user_input)
 
             return {
-                "draft_itinerary": updated,
+                "draft_itinerary": normalized,
                 "message": "Got it. I’ve updated your draft plan. Say ‘finalize’ when ready."
             }
 
-        # ---------------- RAG PRIORITY (FOOD / LOCAL FACTS) ----------------
+        # ---------------- RAG ----------------
         if self._should_use_rag(user_input) and "RAG" in self.tools:
-            rag_data = self.tools["RAG"](user_input, context)
-            return self._synthesize_chat(user_input, context, {"RAG": rag_data})
+            rag = self.tools["RAG"](user_input, context)
+            return self._synthesize_chat(user_input, context, {"RAG": rag})
 
-        # ---------------- NORMAL TOOL FLOW ----------------
-        tool_results = {}
+        # ---------------- OTHER TOOLS ----------------
+        results = {}
         for tool in self._decide_tools(user_input):
-            tool_results[tool] = self.tools[tool](user_input, context)
+            results[tool] = self.tools[tool](user_input, context)
 
-        if tool_results:
-            return self._synthesize_chat(user_input, context, tool_results)
+        if results:
+            return self._synthesize_chat(user_input, context, results)
 
-        # ---------------- PURE CHAT FALLBACK ----------------
+        # ---------------- FALLBACK ----------------
         return self.llm.invoke(user_input).content
