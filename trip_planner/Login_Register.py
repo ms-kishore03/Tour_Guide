@@ -17,7 +17,6 @@ st.set_page_config(
 
 init_session_state()
 
-# Redirect if already logged in
 if st.session_state.user:
     st.switch_page("pages/Home.py")
 

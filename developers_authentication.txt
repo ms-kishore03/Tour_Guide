@@ -1,6 +1,0 @@
-This file is for all the authentications that we will be using throughout the project
-
-1. MongoDB credentials for application login
-Username : qwerty
-Password : qwerty
-url : mongodb+srv://tester_username:tester_password@ai-tour-guide.mzeft5j.mongodb.net/

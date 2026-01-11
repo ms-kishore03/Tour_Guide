@@ -17,7 +17,6 @@ db = client["Tour_Guide"]
 collection = db["itinerary"]
 
 # ---------------- PLACE-SCOPED SESSION MEMORY ----------------
-# SESSION_STATE[user][place] = { memory: [], draft_itinerary: [] }
 SESSION_STATE = {}
 
 
@@ -110,7 +109,6 @@ def cognix_ai(
         SESSION_STATE[username][place]["draft_itinerary"] = _load_itinerary_from_db(
             username, place
         )
-        # DO NOT overwrite `result` — UI needs the grouped response
 
     return result
 

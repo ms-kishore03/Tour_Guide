@@ -92,7 +92,7 @@ if "places" in st.session_state and st.session_state.places:
     """, unsafe_allow_html=True)
 
     for i, place in enumerate(st.session_state.places):
-        desc = st.session_state.descriptions[i][:180] + "..."  # short description
+        desc = st.session_state.descriptions[i][:180] + "..." 
         full_desc = st.session_state.descriptions[i]
         st.markdown(
             f"""

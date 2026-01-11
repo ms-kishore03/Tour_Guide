@@ -32,9 +32,6 @@ def get_flight_details(departure_id, arrival_id, outbound_date, return_date,curr
   search = GoogleSearch(params)
   results = search.get_dict()
 
-  #with open("google_flights_response.json", "w", encoding="utf-8") as f:
-  #  json.dump(results, f, indent=2, ensure_ascii=False)
-
   seen = set()
   flight_options = []
   for flight in results.get("best_flights", []):

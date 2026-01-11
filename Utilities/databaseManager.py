@@ -8,8 +8,7 @@ db = client['Tour_Guide']
 
 def insert_place(Trip_Theme, Specific_Activity, Climate, budget, duration, Location, TripType, Transport, Places,Definitions):
 
-    # Access the database
-    
+  
 
     collection = db['Places_Database']
 
@@ -101,7 +100,6 @@ def get_saved_trips():
 
     saved_trips = list(collection.find({"username": username}))
 
-    # Extract trip_data (each is a dict)
     trips = [entry["trip_data"] for entry in saved_trips if "trip_data" in entry]
     return trips
 

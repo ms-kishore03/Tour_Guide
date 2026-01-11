@@ -14,9 +14,7 @@ st.set_page_config(page_title="Trip Overview", page_icon="🧭", layout="wide")
 # ----------------- Retrieve Trip -----------------
 try:
     trip = st.session_state.get("current_trip", None)
-    # print(f"Retrieved current_trip from st.session_state: {trip}")
 except Exception as e:
-    # print(f"Error retrieving current_trip: {e}")
     st.error(f"Error loading trip data: {e}")
     trip = None
 
@@ -63,10 +61,10 @@ with left_col:
         location = geolocator.geocode(place, timeout=10)
         if location:
             lat, lon = location.latitude, location.longitude
-            #print(f"Geocoded {place} to coordinates: ({lat}, {lon})")
+           
         else:
             lat, lon, _ = geoapify.geoapify_attractions(place)
-            #st.warning(f"Could not find coordinates for {place}. Defaulting to (0, 0).")
+            
     except (GeocoderTimedOut, GeocoderUnavailable) as e:
         lat, lon = 0, 0
         st.warning(f"Geocoding error for {place}: {e}. Defaulting to (0, 0).")
@@ -79,13 +77,12 @@ with left_col:
 
         if result["status"] == "error":
             _,_,raw_geo_data = geoapify.geoapify_attractions(place)
-            #print("Raw Geoapify data:", raw_geo_data)  #DEBUG LINE
+            
             attractions = get_top_attractions_for_ui(
                 place=place,
                 geoapify_data=raw_geo_data,
                 llm=settings.llm
             )
-            #print("Attractions fetched:", attractions)  #DEBUG LINE
 
             if not attractions:
                 st.info("Fetching popular attractions using general knowledge.")
@@ -102,13 +99,11 @@ with left_col:
                         if line.strip()
                     ][:10]
 
-            # cache clean list
             databaseManager.set_things_to_do(place, attractions)
 
         else:
             attractions = result["data"]
 
-        # show EXACTLY 10 clean items
         for idx, name in enumerate(attractions[:10], start=1):
             st.markdown(f"**{idx}. {name}**")
 
@@ -118,7 +113,6 @@ with left_col:
 
     # --- Weather Information Section ---
     with st.expander("🌦️ Weather Information", expanded=True):
-        #print("Fetching weather data for:", place)
         weather_details = WeatherHandler.weather_report(lat, lon, place)
         response = cognix_ai(
             user_input="Provide a detailed weather report based on the following data.",
@@ -143,9 +137,6 @@ with right_col:
     if send and user_input:
         conversation_history = chat_history
         conversation_history.append({"role": "user", "content": user_input})
-        #response = agents.chatbot(
-        #    conversation_history, user_input, st.session_state.get("weather_info", ""),place,attractive_points
-        #)
 
         response = cognix_ai(
             user_input=user_input,

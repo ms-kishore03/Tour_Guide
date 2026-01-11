@@ -138,8 +138,6 @@ with chat_col:
 with itinerary_col:
     st.subheader("🗓️ Your Itinerary")
 
-
-
     username = st.session_state.get("user", "guest")
 
     itinerary_items = databaseManager.get_itinerary_from_db(
