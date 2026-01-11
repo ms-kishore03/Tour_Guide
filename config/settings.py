@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from langchain_groq import ChatGroq
 from google import genai
+
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
