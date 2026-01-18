@@ -18,3 +18,4 @@ langchain-core==1.2.6
 langchain-text-splitters==1.1.0
 langchain-huggingface==1.2.0
 chromadb>=0.4.24
+google_search_results==2.4.2
