@@ -101,3 +101,30 @@ In this module, the user decides their destination. The Enquiry Agent guides the
 
 All chats, lists, and spending are stored in the database for future reference. Users can plan, save, or start their journey, or simply explore.
 >>>>>>> Stashed changes
+
+## System Architecture
+
+```mermaid
+flowchart TD
+    U["User (Browser)"] --> UI["Streamlit Web UI"]
+
+    UI --> AR["Agent Router"]
+    AR --> LLM["LLM Brain"]
+
+    LLM --> T1["Flight Search Tool"]
+    LLM --> T2["Accommodation Tool"]
+    LLM --> T3["Itinerary Tool"]
+    LLM --> T4["Weather Tool"]
+    LLM --> T5["Attractions Tool"]
+    LLM --> T6["Knowledge Tool"]
+
+    T1 --> API1["SERP API"]
+    T2 --> API2["Bookings API"]
+    T4 --> API3["Weather API"]
+    T5 --> API4["Places API"]
+
+    T3 --> DB["Trip Database"]
+    UI --> DB
+
+    T6 --> VDB["Vector DB"]
+

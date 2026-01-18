@@ -58,3 +58,6 @@ cognix_ai/data/
 # Vector DB / embeddings (generated)
 vectorstore/
 cognix_ai/vectorstore/
+
+# codebase structure
+structure.txt
