@@ -139,7 +139,7 @@ with itinerary_col:
     st.subheader("🗓️ Your Itinerary")
 
     username = st.session_state.get("user", "guest")
-
+    print(username)
     itinerary_items = databaseManager.get_itinerary_from_db(
         collection=collection,
         username=username,
@@ -149,17 +149,19 @@ with itinerary_col:
     if not itinerary_items:
         st.info("No itinerary finalized yet. Start planning in the chat 👉")
     else:
-        for idx, item in enumerate(itinerary_items, start=1):
-            location = item.get("location", "Unknown place")
-            date = item.get("date", "unknown")
-            time = item.get("time", "unknown")
+        idx=1
+        for date, items in itinerary_items.items():
+            for item in items:
+                location = items.get("location", "Unknown place")
+                time = items.get("time", "unknown")
 
             st.markdown(
                 f"""
-                **{idx}. {location}**  
                 🗓️ {date} &nbsp;&nbsp; ⏰ {time}
+                **{idx}. {location}**  
                 """
             )
+            idx+=1
 
 left, center, right = st.columns([1, 1, 1])
 

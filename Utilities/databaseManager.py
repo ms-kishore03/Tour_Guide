@@ -210,11 +210,11 @@ def get_todo(username, place):
 def get_itinerary_from_db(collection, username, place):
     doc = collection.find_one(
         {"username": username, "place": place},
-        {"_id": 0, "itinerary_list": 1}
+        {"_id": 0, "itinerary_by_date": 1}
     )
     if not doc:
-        return []
-    return doc.get("itinerary_list", [])
+        return {}
+    return doc.get("itinerary_by_date", {})
 
 def save_ongoing_trips(username, place):
 
@@ -300,5 +300,7 @@ def get_expenses(username, place):
     return doc.get("expenses", []) if doc else []
 
 def end_ongoing_trip(username ,place):
-    collection = db["Ongoing_Trips"]
-    collection.delete_one({"username": username, "place": place})
+    ongoing_trip_collection = db["Ongoing_Trips"]
+    ongoing_trip_collection.delete_one({"username": username, "place": place})
+    itinerary_collection = db["itinerary"]
+    itinerary_collection.delete_one({"username":username,"place":place})

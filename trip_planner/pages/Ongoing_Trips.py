@@ -58,17 +58,19 @@ with left:
     )
 
     if itinerary_items:
-        for idx, item in enumerate(itinerary_items, start=1):
-            location = item.get("location", "Unknown place")
-            date = item.get("date", "Unknown")
-            time = item.get("time", "Unknown")
+        idx=1
+        for date, items in itinerary_items.items():
+            for item in items:
+                location = item.get("location", "Unknown place")    
+                time = item.get("time", "Unknown")
 
             st.markdown(
                 f"""
-                **{idx}. {location}**  
                 🗓️ {date} &nbsp;&nbsp; ⏰ {time}
+                **{idx}. {location}**  
                 """
             )
+            idx+=1
     else:
         st.info("No itinerary items added yet.")
 
