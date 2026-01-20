@@ -139,7 +139,6 @@ with itinerary_col:
     st.subheader("🗓️ Your Itinerary")
 
     username = st.session_state.get("user", "guest")
-    print(username)
     itinerary_items = databaseManager.get_itinerary_from_db(
         collection=collection,
         username=username,
@@ -152,8 +151,8 @@ with itinerary_col:
         idx=1
         for date, items in itinerary_items.items():
             for item in items:
-                location = items.get("location", "Unknown place")
-                time = items.get("time", "unknown")
+                location = item.get("location", "Unknown place")
+                time = item.get("time", "unknown")
 
             st.markdown(
                 f"""

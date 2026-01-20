@@ -146,4 +146,4 @@ with center:
     if st.button("End Trip"):
         databaseManager.end_ongoing_trip(user, place)
         st.success("Trip ended! You can start a new trip from the Trip Planner page.")
-        st.switch_page("pages/Trip_Planner.py")
+        st.switch_page("pages/Home.py")

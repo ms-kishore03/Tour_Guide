@@ -67,7 +67,7 @@ with left_col:
             
     except (GeocoderTimedOut, GeocoderUnavailable) as e:
         lat, lon = 0, 0
-        st.warning(f"Geocoding error for {place}: {e}. Defaulting to (0, 0).")
+        
 
     # --- Things to Do Section ---
     with st.expander("🧳 Things to Do", expanded=True):
