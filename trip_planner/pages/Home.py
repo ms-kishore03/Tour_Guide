@@ -85,7 +85,7 @@ st.subheader("📚 Your Saved Trips")
 
 # ---- Clickable HTML Cards ----
 
-saved_trips = databaseManager.get_saved_trips()
+saved_trips = databaseManager.get_saved_trips(st.session_state.user)
 
 if saved_trips:
     for i, trip in enumerate(saved_trips, start=1):
@@ -100,7 +100,7 @@ if saved_trips:
                     st.switch_page("pages/Trip_Overview.py")
             with trip_remove:
                 if st.button("Delete", key=f"delete_trip_{i}", use_container_width=True, type="primary"):
-                    if databaseManager.delete_saved_trip(trip):
+                    if databaseManager.delete_saved_trip(st.session_state.user, trip):
                         st.rerun()
                     else:
                         st.error("Failed to delete trip.")

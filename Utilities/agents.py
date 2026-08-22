@@ -8,34 +8,21 @@ import re
 import json
 from config import settings
 import API_Handlers.geoapify as geoapify
+from cognix_ai.tools.hotel_tool import retieve_hotel_names as _tool_retrieve_hotel_names
 load_dotenv()
 
 def get_airport_id(city):
     llm = settings.llm
     prompt=f"""
-    You are an airport code finder agent. You are given the name of the city: {city}. 
+    You are an airport code finder agent. You are given the name of the city: {city}.
     Your task is to provide the corresponding IATA airport code for the main airport in that city. No additional explanations are needed.
     """
     return llm.invoke(prompt).content.strip().upper()
 
-def retieve_hotel_names(location,hotel_names):
-    llm = settings.llm
-    prompt = f"""
-        You are given raw hotel names from {location}.
-
-        TASK:
-        - Remove any extra descriptors or suffixes
-        - Keep ONLY the clean hotel name
-
-        OUTPUT FORMAT (MANDATORY):
-        Return ONLY a numbered list.
-        Each line must be: <number>. <hotel name>
-        No explanations.
-        No arrows.
-        No extra text.
-        No headings.
-
-        INPUT:
-        {hotel_names}
-    """
-    return llm.invoke(prompt).content.strip()
+def retieve_hotel_names(location, hotel_names):
+    """Thin wrapper around the canonical implementation in
+    cognix_ai/tools/hotel_tool.py, adapted to this module's older
+    (location, hotel_names) positional calling convention."""
+    return _tool_retrieve_hotel_names(
+        query="", context={"place": location, "hotel_names": hotel_names, "llm": settings.llm}
+    )

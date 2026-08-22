@@ -1,19 +1,21 @@
 # brain/cognix.py
 
+import asyncio
 import json
 import os
 import sys
 from datetime import datetime
+from typing import AsyncIterator
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from config import settings
 
 
 class CognixAI:
-    def __init__(self, tools: dict, memory: list | None = None):
+    def __init__(self, tools: dict, memory: list | None = None, llm=None):
         self.tools = tools
         self.memory = memory or []
-        self.llm = settings.llm
+        self.llm = llm or settings.llm
 
     # ============================================================
     # INTENT DETECTION
@@ -185,18 +187,7 @@ NONE
     # ============================================================
 
     def _synthesize_chat(self, user_input: str, context: dict, tool_results: dict) -> str:
-        prompt = f"""
-You are Cognix AI, a confident travel assistant.
-
-Answer naturally and directly.
-
-User question:
-"{user_input}"
-
-Place: {context.get("place")}
-Itinerary: {context.get("draft_itinerary")}
-Tool results: {tool_results}
-"""
+        prompt = self._synthesis_prompt(user_input, context, tool_results)
         return self.llm.invoke(prompt).content
 
     # ============================================================
@@ -263,3 +254,140 @@ Tool results: {tool_results}
 
         # ---------------- FALLBACK ----------------
         return self.llm.invoke(user_input).content
+
+    # ============================================================
+    # STREAMING ENTRY (SSE) — parallel to run(), same routing logic,
+    # but yields incremental progress/token events instead of returning
+    # a single blob.
+    # ============================================================
+
+    async def run_stream(self, user_input: str, context: dict) -> AsyncIterator[dict]:
+        async def stream_llm(prompt: str) -> str:
+            full = ""
+            try:
+                async for chunk in self.llm.astream(prompt):
+                    piece = chunk.content or ""
+                    if piece:
+                        full += piece
+                        yield_event = {"type": "token", "data": piece}
+                        yield yield_event
+            except Exception:
+                full = full or "Sorry, I couldn't generate a response right now."
+                yield {"type": "token", "data": full}
+            self._last_stream_text = full
+
+        async def run_tool(name: str):
+            yield {"type": "tool_call", "tool": name}
+            result = await asyncio.to_thread(self.tools[name], user_input, context)
+            yield {"type": "tool_result", "tool": name, "data": result}
+
+        # ---------------- WEATHER (HARD ROUTE) ----------------
+        if self._is_weather_intent(user_input):
+            if "WEATHER" not in self.tools:
+                yield {"type": "final", "data": {"message": "Weather service is unavailable at the moment."}}
+                return
+            result = None
+            async for event in run_tool("WEATHER"):
+                if event["type"] == "tool_result":
+                    result = event["data"]
+                yield event
+            yield {"type": "final", "data": {"message": result}}
+            return
+
+        # ---------------- FINALIZE ----------------
+        if self._is_finalize_intent(user_input):
+            if self._is_draft_edit_intent(user_input):
+                yield {"type": "tool_call", "tool": "ITINERARY_EDITOR"}
+                proposed = await asyncio.to_thread(self._update_draft_itinerary, user_input, context)
+                context["draft_itinerary"] = proposed
+
+            if not context.get("draft_itinerary"):
+                yield {"type": "final", "data": {"message": "You don’t have any plan yet to finalize."}}
+                return
+
+            context["draft_itinerary"] = self._normalize_and_sort_itinerary(context["draft_itinerary"])
+
+            yield {"type": "tool_call", "tool": "ITINERARY"}
+            result = await asyncio.to_thread(self.tools["ITINERARY"], user_input, context)
+            yield {"type": "tool_result", "tool": "ITINERARY", "data": result}
+
+            grouped = self._group_itinerary_by_day(context["draft_itinerary"])
+            yield {
+                "type": "final",
+                "data": {
+                    "status": "finalized",
+                    "message": result,
+                    "itinerary": context["draft_itinerary"],
+                    "day_summary": grouped,
+                },
+            }
+            return
+
+        # ---------------- DRAFT EDIT ----------------
+        if self._is_draft_edit_intent(user_input):
+            yield {"type": "tool_call", "tool": "ITINERARY_EDITOR"}
+            proposed = await asyncio.to_thread(self._update_draft_itinerary, user_input, context)
+            normalized = self._normalize_and_sort_itinerary(proposed)
+            context["draft_itinerary"] = normalized
+            self.memory.append(user_input)
+
+            yield {
+                "type": "final",
+                "data": {
+                    "draft_itinerary": normalized,
+                    "message": "Got it. I’ve updated your draft plan. Say ‘finalize’ when ready.",
+                },
+            }
+            return
+
+        # ---------------- RAG ----------------
+        if self._should_use_rag(user_input) and "RAG" in self.tools:
+            rag_result = None
+            async for event in run_tool("RAG"):
+                if event["type"] == "tool_result":
+                    rag_result = event["data"]
+                yield event
+
+            prompt = self._synthesis_prompt(user_input, context, {"RAG": rag_result})
+            self._last_stream_text = ""
+            async for event in stream_llm(prompt):
+                yield event
+            yield {"type": "final", "data": {"message": self._last_stream_text}}
+            return
+
+        # ---------------- OTHER TOOLS ----------------
+        tool_names = await asyncio.to_thread(self._decide_tools, user_input)
+        results = {}
+        for tool in tool_names:
+            async for event in run_tool(tool):
+                if event["type"] == "tool_result":
+                    results[tool] = event["data"]
+                yield event
+
+        if results:
+            prompt = self._synthesis_prompt(user_input, context, results)
+            self._last_stream_text = ""
+            async for event in stream_llm(prompt):
+                yield event
+            yield {"type": "final", "data": {"message": self._last_stream_text}}
+            return
+
+        # ---------------- FALLBACK ----------------
+        self._last_stream_text = ""
+        async for event in stream_llm(user_input):
+            yield event
+        yield {"type": "final", "data": {"message": self._last_stream_text}}
+
+    def _synthesis_prompt(self, user_input: str, context: dict, tool_results: dict) -> str:
+        return f"""
+You are Cognix AI, a confident travel assistant.
+
+Answer naturally and directly.
+
+User question:
+"{user_input}"
+
+Place: {context.get("place")}
+Itinerary: {context.get("draft_itinerary")}
+Tool results: {tool_results}
+"""

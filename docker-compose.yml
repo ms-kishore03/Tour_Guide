@@ -1,0 +1,63 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      Accomodation_API_KEY: ${Accomodation_API_KEY:-}
+      OpenWeatherMap_API_Key: ${OpenWeatherMap_API_Key:-}
+      GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    depends_on:
+      - mongo
+      - tempo
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./backend/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./backend/observability/tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./backend/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./backend/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - tempo
+
+volumes:
+  mongo-data:

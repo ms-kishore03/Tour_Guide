@@ -212,21 +212,31 @@ flowchart TD
 
 ```
 Tour_Guide/
-├── trip_planner/           # Streamlit UI pages
+├── trip_planner/           # Streamlit UI pages (legacy app)
 │   ├── Login_Register.py   # Entry point
 │   ├── Explore.py          # Destination discovery
 │   ├── Planner.py          # Trip planning interface
 │   └── Trip.py             # Ongoing trip management
-├── cognix_ai/              # Agent brain and tools
-│   ├── agent_brain.py      # Central orchestrator
+├── cognix_ai/              # Agent brain and tools (shared by legacy app + new backend)
+│   ├── brain/cognix.py     # CognixAI orchestrator (run() + run_stream())
 │   ├── tools/              # Specialized agents
 │   └── src/embeddings/     # RAG pipeline
-├── API_Handlers/           # External API integrations
-├── Utilities/              # Database, auth, helpers
+├── API_Handlers/           # External API integrations (sync, used by legacy app)
+├── Utilities/              # Database, auth, helpers (shared by legacy app + new backend)
 ├── vectorstore/            # ChromaDB storage
-├── config/                 # Configuration files
+├── config/                 # Legacy app configuration
 ├── requirements.txt
-├── Dockerfile
+├── Dockerfile               # Legacy Streamlit app image
+├── backend/                 # FastAPI service (Phase 1/2 rewrite)
+│   ├── app/{core,db,schemas,services,routers}/
+│   ├── observability/        # Prometheus, Tempo, Grafana provisioning
+│   ├── tests/{unit,integration}/
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/                 # React 18 + TypeScript SPA (Phase 1/2 rewrite)
+│   └── src/{pages,components,api,store,hooks,types}/
+├── .github/workflows/ci.yml  # pytest + vitest + build on push/PR
+├── docker-compose.yml         # mongo + backend + prometheus + tempo + grafana
 └── README.md
 ```
 
@@ -252,13 +262,101 @@ The application is fully containerized using **Docker** and deployed on **Render
 
 ---
 
-## ⚠️ Current Limitations
+## ⚠️ Current Limitations (legacy Streamlit app)
 
 - ⏱️ Synchronous API calls (no async implementation yet)
 - 📊 No centralized logging/observability framework
 - 🧪 Minimal automated test coverage
 - 🔐 Secrets managed via `.env` only (not production-ready secret management)
 - 👥 No role-based access control (RBAC)
+
+The items above are what motivated the React/FastAPI rewrite below. The Streamlit app
+(`trip_planner/`) is kept running unmodified alongside it during the migration.
+
+---
+
+## 🆕 React + FastAPI Rewrite (Phase 1 & 2)
+
+`backend/` and `frontend/` are a parallel, from-scratch rewrite of the same product on a modern
+stack, built to demonstrate production patterns the Streamlit app couldn't: a typed REST API,
+streaming agent responses, JWT auth, and real observability. The old app is untouched and still
+works — nothing under `trip_planner/`, `cognix_ai/`, `API_Handlers/`, or `Utilities/` was deleted,
+only a few functions there were made Streamlit-independent so the new backend could reuse them.
+
+### Stack
+
+- **Frontend**: React 18 + TypeScript, Vite, Mantine v7, React Router v7, Zustand, TanStack Query,
+  Vitest + React Testing Library.
+- **Backend**: FastAPI, Motor (async MongoDB driver), Pydantic v2 schemas on every route, JWT auth,
+  pytest + pytest-asyncio.
+- **Observability**: OpenTelemetry traces → Tempo, Prometheus metrics, a provisioned Grafana
+  dashboard.
+- **Local infra**: `docker-compose.yml` at the repo root — `mongo`, `backend`, `prometheus`,
+  `tempo`, `grafana`.
+
+### Why SSE, not WebSocket, for chat
+
+Chat is one request → one streamed response per turn — no server-initiated pushes and no
+client-to-server messages mid-stream, so there's no duplex requirement WebSocket would justify.
+`POST /api/v1/chat/{place}/stream` returns `text/event-stream`: plain HTTP/1.1, reconnects
+natively, and doesn't need sticky sessions across uvicorn workers the way WS would. Frames carry
+`event: token|tool_call|final|error` plus a sequence id. Because `EventSource` can't send custom
+headers, the frontend (`useChatStream`) uses `fetch` + a manual `ReadableStream` reader so it can
+attach `Authorization: Bearer <token>`. Partial assistant text is upserted into MongoDB every ~40
+characters, so a dropped connection can resume from `GET /chat/{place}/history` — that's the
+backpressure/reconnect/partial-state story: the generator only produces as fast as the LLM
+streams tokens, and state is durable enough to survive a disconnect mid-turn.
+
+### Running the new stack locally
+
+```bash
+# backend + observability
+docker compose up -d          # mongo, backend, prometheus, tempo, grafana
+curl http://localhost:8000/api/v1/healthz
+open http://localhost:3000    # Grafana, anonymous admin — dashboard: "Tour Guide — Backend Overview"
+open http://localhost:9090    # Prometheus
+
+# frontend (outside compose this phase)
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+`docker-compose.yml` maps the compose Mongo to host port `27018` (not `27017`) so it doesn't
+collide with a locally-installed MongoDB the Streamlit app might already be using; the backend
+talks to it over the compose network by service name (`mongo:27017`) regardless.
+
+### Tests
+
+```bash
+cd backend && pytest          # 72 tests: unit + integration (httpx AsyncClient, mongomock-motor,
+                               # respx-mocked external APIs, and a real Mongo instance where
+                               # mongomock has known bugs)
+cd frontend && npx vitest run # 16 tests: RTL component/page tests, mocked SSE stream
+```
+
+### Phase 2 (should-have) — done
+
+- **Async external calls**: `weather_service`, `attractions_service` (`get_geo`), `hotel_service`,
+  and `flight_service` now call OpenWeatherMap / Geoapify / Booking.com / SerpApi directly over
+  `httpx.AsyncClient`, natively async — no more `run_in_threadpool`-wrapped sync `requests` calls
+  on these hot paths. `API_Handlers/*.py` (the `requests`/`serpapi`-SDK versions) are untouched and
+  still used by the Streamlit app and by the chat-tool path (already threadpool-wrapped as a whole
+  turn there, so unaffected).
+- **CI**: `.github/workflows/ci.yml` — `pytest` (with a Mongo service container) and
+  `vitest run` + `tsc -b && vite build` on every push/PR to `main`.
+- **Secure coding pass**:
+  - Rate limiting via `slowapi` on `/auth/register` (5/min), `/auth/login` (10/min),
+    `/auth/refresh` (20/min), `/chat/{place}` and `/chat/{place}/stream` (20/min each).
+  - CORS allowlist already read from `settings.cors_origins` (never `*`).
+  - Mongo filter audit: every query filter value is a typed path param or JWT-derived username,
+    never a raw request-body dict, so there's no NoSQL-operator-injection surface.
+  - `app/core/secrets.py` — a `SECRETS_PROVIDER` swap point (`aws` implemented via
+    `boto3.client("secretsmanager")`, no-op by default) called before `Settings()` reads the
+    environment, so `.env` can be replaced by a real secrets backend without touching call sites.
+
+### Not built yet (Phase 3, deferred)
+
+Docker Compose extended to include the frontend itself, and a k8s manifest story
+(Deployment/Service/Ingress, ConfigMap/Secret).
 
 ---
 

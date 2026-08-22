@@ -1,4 +1,3 @@
-import streamlit as st
 from datetime import datetime, timedelta
 from config import settings
 from config.settings import mongo_db_client as client
@@ -66,9 +65,7 @@ def get_things_to_do(destination):
 
     return {"status": "ok", "data": entry.get("interests", [])}
 
-def save_a_trip(trip_details):
-    username = st.session_state.get("user")
-
+def save_a_trip(username, trip_details):
     if not username:
         return {"status": "error", "message": "User not logged in"}
 
@@ -93,9 +90,7 @@ def save_a_trip(trip_details):
     return {"status": "saved"}
 
 
-def get_saved_trips():
-    username = st.session_state.user
-
+def get_saved_trips(username):
     collection = db['Saved_Trips']
 
     saved_trips = list(collection.find({"username": username}))
@@ -103,9 +98,7 @@ def get_saved_trips():
     trips = [entry["trip_data"] for entry in saved_trips if "trip_data" in entry]
     return trips
 
-def delete_saved_trip(trip):
-    username = st.session_state.user
-
+def delete_saved_trip(username, trip):
     collection = db['Saved_Trips']
 
     if not username:
@@ -122,9 +115,7 @@ def delete_saved_trip(trip):
         return False
 
 
-def trip_plan(trip_details):
-    
-    username = st.session_state.user
+def trip_plan(username, trip_details):
     if not username:
         return "User not logged in."
     

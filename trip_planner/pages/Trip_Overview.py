@@ -163,7 +163,7 @@ col1, col2, col3 = st.columns([1, 1, 1])
 with col1:
     if st.button("💾 Save Trip"):
         try:
-            result = databaseManager.save_a_trip(trip)
+            result = databaseManager.save_a_trip(st.session_state.user, trip)
 
             if result["status"] == "exists":
                 st.warning("This trip is already saved.")
@@ -181,7 +181,7 @@ with col2:
     if st.button("🚀 Start Planning"):
         st.session_state["planning_started"] = True
         try:
-            res = databaseManager.trip_plan(trip)
+            res = databaseManager.trip_plan(st.session_state.user, trip)
             if res:
                 st.session_state["current_trip"]["Place Name"] = place
                 st.switch_page("pages/Trip_Itinerary.py")

@@ -1,12 +1,9 @@
-<<<<<<< Updated upstream
 # Environment
-qwe
 .env
 venv/
 ENV/
 env/
-.github/
-
+.venv/
 
 # Python cache
 __pycache__/
@@ -44,11 +41,9 @@ htmlcov/
 .tox/
 .pytest_cache/
 
-# Optional: ignore local/test scripts
-TODO.txt
-=======
-venv
->>>>>>> Stashed changes
+# Node / frontend
+node_modules/
+frontend/dist/
 
 developers_authentication.txt
 

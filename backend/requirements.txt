@@ -1,0 +1,40 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic[email]>=2.9.0
+pydantic-settings>=2.5.0
+motor>=3.6.0
+pymongo>=4.9.0
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.2.0
+python-multipart>=0.0.12
+python-dotenv>=1.0.1
+httpx>=0.27.0
+slowapi>=0.1.9
+# boto3>=1.34  # uncomment if SECRETS_PROVIDER=aws is used (see app/core/secrets.py)
+langchain-groq>=0.2.0
+langchain-core>=0.3.0
+google-genai>=0.3.0
+chromadb>=0.5.0
+sentence-transformers>=3.2.0
+langchain-community>=0.3.0
+langchain-huggingface>=0.1.0
+langchain-chroma>=0.2.0
+pandas>=2.2.0
+geopy>=2.4.1
+google-search-results>=2.4.2
+
+# observability
+opentelemetry-api>=1.27.0
+opentelemetry-sdk>=1.27.0
+opentelemetry-exporter-otlp>=1.27.0
+opentelemetry-instrumentation-fastapi>=0.48b0
+opentelemetry-instrumentation-pymongo>=0.48b0
+opentelemetry-exporter-otlp-proto-grpc>=1.27.0
+prometheus-fastapi-instrumentator>=7.0.0
+prometheus-client>=0.21.0
+
+# testing
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+mongomock-motor>=0.0.34
+respx>=0.21.0

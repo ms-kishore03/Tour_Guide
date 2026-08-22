@@ -55,9 +55,12 @@ def get_accomodations(location,checkin,checkout):
     loc_id = loc_res["data"][0]["id"]
     stay_res = search_stays(loc_id, checkin, checkout)
 
+    stays = stay_res.get("data", [])
+    # skip index 0 (first result), take up to 10 more, bounded to what's actually returned
+    upper = min(10, max(len(stays) - 1, 0))
     names = []
-    for i in range(10,0,-1):
-        hotel_name = stay_res["data"][i]["name"]
+    for i in range(upper, 0, -1):
+        hotel_name = stays[i]["name"]
         names.append(hotel_name)
     
     accomodations_list = agents.retieve_hotel_names(location,names)

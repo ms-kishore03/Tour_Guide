@@ -22,15 +22,14 @@ def register(username, password, confirm_password, email):
         return "All fields are required!"
 
     if users.find_one({"username": username}):
-        print("User already exists...... Proceeding to login")
-        login(username, password)
-    
-    elif users.find_one({"email": email}):
+        return "Username already exists! Please log in instead."
+
+    if users.find_one({"email": email}):
         return "Email already registered! Please use a different email."
 
     if password != confirm_password:
         return "Passwords do not match!"
-    
+
     email_regex = r'^[\w\.-]+@[\w\.-]+\.\w+$'
     if not re.match(email_regex, email):
         return "Invalid email address!"
@@ -39,6 +38,11 @@ def register(username, password, confirm_password, email):
     users.insert_one({"username": username, "password": hashed_pw, "email": email})
 
     return "User registered successfully!"
+
+
+def get_user(username):
+    """Return the raw user document (or None), used by the FastAPI backend to build JWT claims."""
+    return users.find_one({"username": username})
 
 def login(username, password):
 
